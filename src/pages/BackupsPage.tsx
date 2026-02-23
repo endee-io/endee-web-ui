@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react'
-import { GoPlus, GoTrash, GoSync, GoDownload, GoUpload, GoCheck, GoAlert, GoHourglass } from 'react-icons/go'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { GoPlus, GoTrash, GoSync, GoDownload, GoUpload, GoX } from 'react-icons/go'
 import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
 import CreateBackupModal from '../components/CreateBackupModal'
@@ -10,44 +10,38 @@ interface Backup {
   name: string
 }
 
-interface BackupJob {
-  job_id: string
-  index_id: string
-  backup_name: string
-  status: 'in_progress' | 'completed' | 'failed'
-  error?: string
-  started_at: number
-  completed_at?: number
+interface ActiveBackup {
+  active: boolean
+  backup_name?: string
+  index_id?: string
 }
 
-type Tab = 'backups' | 'jobs'
-
-const STATUS_CONFIG = {
-  completed: {
-    label: 'Completed',
-    icon: GoCheck,
-    dot: 'bg-green-500',
-    text: 'text-green-700 dark:text-green-400',
-  },
-  in_progress: {
-    label: 'In Progress',
-    icon: GoHourglass,
-    dot: 'bg-amber-500 animate-pulse',
-    text: 'text-amber-700 dark:text-amber-400',
-  },
-  failed: {
-    label: 'Failed',
-    icon: GoAlert,
-    dot: 'bg-red-500',
-    text: 'text-red-700 dark:text-red-400',
-  },
-} as const
+interface BackupInfo {
+  original_index: string
+  params: {
+    M: number
+    checksum: number
+    dim: number
+    ef_construction: number
+    quant_level: number
+    space_type: string
+    sparse_dim: number
+    total_elements: number
+  }
+  size_mb: number
+  timestamp: number
+}
 
 export default function BackupsPage() {
   const [backups, setBackups] = useState<Backup[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('backups')
+
+  // Active backup state
+  const [activeBackup, setActiveBackup] = useState<ActiveBackup | null>(null)
+  const [isPolling, setIsPolling] = useState(false)
+  const prevActiveRef = useRef<boolean | null>(null)
+  const activeBackupNameRef = useRef<string | null>(null)
 
   // Create backup modal state
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -67,59 +61,17 @@ export default function BackupsPage() {
   const [deleteBackupName, setDeleteBackupName] = useState('')
   const [deleting, setDeleting] = useState(false)
 
-  // Backup jobs state
-  const [jobs, setJobs] = useState<BackupJob[]>([])
+  // Info modal state
+  const [showInfoModal, setShowInfoModal] = useState(false)
+  const [infoBackupName, setInfoBackupName] = useState('')
+  const [backupInfo, setBackupInfo] = useState<BackupInfo | null>(null)
+  const [loadingInfo, setLoadingInfo] = useState(false)
+  const [infoError, setInfoError] = useState<string | null>(null)
 
-  // Authentication operations
   const { token, handleUnauthorized } = useAuth()
   const { notification, showNotification, clearNotification } = useNotification()
 
-  const loadJobs = useCallback(async () => {
-    try {
-      const response = await fetch('/api/v1/backups/jobs', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: token })
-        }
-      })
-      if (!response.ok) {
-        if (response.status === 401) {
-          handleUnauthorized()
-        }
-        return
-      }
-      const data = await response.json()
-      const allJobs: BackupJob[] = Array.isArray(data.jobs) ? data.jobs : []
-      // Sort by started_at descending (latest first)
-      allJobs.sort((a, b) => b.started_at - a.started_at)
-      setJobs(allJobs)
-    } catch {
-      // Silently fail - jobs are supplementary info
-    }
-  }, [token, handleUnauthorized])
-
-  useEffect(() => {
-    if (window.location.hash === '#jobs') {
-      setActiveTab('jobs')
-    }
-    loadBackups()
-    loadJobs()
-  }, [])
-
-  // Poll for job updates when there are in-progress jobs
-  useEffect(() => {
-    const hasInProgress = jobs.some(j => j.status === 'in_progress')
-    if (!hasInProgress) return
-
-    const interval = setInterval(() => {
-      loadJobs()
-      loadBackups()
-    }, 5000)
-    return () => clearInterval(interval)
-  }, [jobs, loadJobs])
-
-  const loadBackups = async () => {
+  const loadBackups = useCallback(async () => {
     setLoading(true)
     try {
       const response = await fetch('/api/v1/backups', {
@@ -132,12 +84,11 @@ export default function BackupsPage() {
       if (!response.ok) {
         if (response.status === 401) {
           handleUnauthorized()
-          throw new Error("Authentication Token Required.")
+          throw new Error('Authentication Token Required.')
         }
         throw new Error('Failed to fetch backups.')
       }
       const data = await response.json()
-      // API returns array of backup names as strings
       const backupList = Array.isArray(data) ? data.map((name: string) => ({ name })) : []
       setBackups(backupList)
       setError(null)
@@ -146,22 +97,60 @@ export default function BackupsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [token, handleUnauthorized])
 
-  const openCreateModal = () => {
-    setShowCreateModal(true)
-  }
+  const loadActiveBackup = useCallback(async () => {
+    try {
+      const response = await fetch('/api/v1/backups/active', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: token })
+        }
+      })
+      if (!response.ok) return
+      const data: ActiveBackup = await response.json()
+      if (data.active && data.backup_name) {
+        activeBackupNameRef.current = data.backup_name
+      }
+      setActiveBackup(data)
+      setIsPolling(data.active)
+    } catch {
+      // silently fail
+    }
+  }, [token])
+
+  useEffect(() => {
+    loadBackups()
+    loadActiveBackup()
+  }, [])
+
+  // Reload backups and notify when active backup completes
+  useEffect(() => {
+    if (prevActiveRef.current === true && activeBackup?.active === false) {
+      loadBackups()
+      const name = activeBackupNameRef.current
+      showNotification('success', name ? `Backup "${name}" created successfully` : 'Backup created successfully')
+      activeBackupNameRef.current = null
+    }
+    prevActiveRef.current = activeBackup?.active ?? null
+  }, [activeBackup, loadBackups, showNotification])
+
+  // Poll for active backup updates every 3s
+  useEffect(() => {
+    if (!isPolling) return
+    const interval = setInterval(loadActiveBackup, 3000)
+    return () => clearInterval(interval)
+  }, [isPolling, loadActiveBackup])
+
+  const openCreateModal = () => setShowCreateModal(true)
 
   const closeCreateModal = () => {
     setShowCreateModal(false)
-    loadBackups()
-    loadJobs()
-    setActiveTab('jobs')
+    setIsPolling(true)
+    loadActiveBackup()
   }
 
-  const openUploadModal = () => {
-    setShowUploadModal(true)
-  }
+  const openUploadModal = () => setShowUploadModal(true)
 
   const closeUploadModal = () => {
     setShowUploadModal(false)
@@ -200,7 +189,7 @@ export default function BackupsPage() {
       if (!response.ok) {
         if (response.status === 401) {
           handleUnauthorized()
-          throw new Error("Authentication Token Required.")
+          throw new Error('Authentication Token Required.')
         }
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Failed to restore backup')
@@ -238,7 +227,7 @@ export default function BackupsPage() {
       if (!response.ok) {
         if (response.status === 401) {
           handleUnauthorized()
-          throw new Error("Authentication Token Required.")
+          throw new Error('Authentication Token Required.')
         }
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Failed to delete backup')
@@ -255,21 +244,53 @@ export default function BackupsPage() {
     }
   }
 
+  const openInfoModal = async (backupName: string) => {
+    setInfoBackupName(backupName)
+    setBackupInfo(null)
+    setInfoError(null)
+    setLoadingInfo(true)
+    setShowInfoModal(true)
+    try {
+      const response = await fetch(`/api/v1/backups/${encodeURIComponent(backupName)}/info`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: token })
+        }
+      })
+      if (!response.ok) {
+        if (response.status === 401) {
+          handleUnauthorized()
+          throw new Error('Authentication Token Required.')
+        }
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to fetch backup info')
+      }
+      const data: BackupInfo = await response.json()
+      setBackupInfo(data)
+    } catch (err) {
+      setInfoError(err instanceof Error ? err.message : 'Failed to load backup info')
+    } finally {
+      setLoadingInfo(false)
+    }
+  }
+
+  const closeInfoModal = () => {
+    setShowInfoModal(false)
+    setInfoBackupName('')
+    setBackupInfo(null)
+    setInfoError(null)
+  }
+
   const handleDownloadBackup = (backupName: string) => {
     let downloadUrl = `/api/v1/backups/${encodeURIComponent(backupName)}/download`
     if (token) {
       downloadUrl += `?token=${encodeURIComponent(token)}`
     }
-
     const iframe = document.createElement('iframe')
     iframe.style.display = 'none'
     iframe.src = downloadUrl
     document.body.appendChild(iframe)
-
-    setTimeout(() => {
-      document.body.removeChild(iframe)
-    }, 60000)
-
+    setTimeout(() => { document.body.removeChild(iframe) }, 60000)
     showNotification('success', `Downloading backup "${backupName}"`)
   }
 
@@ -277,6 +298,7 @@ export default function BackupsPage() {
     return new Date(timestamp * 1000).toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     })
@@ -300,7 +322,9 @@ export default function BackupsPage() {
           </button>
           <button
             onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            disabled={activeBackup?.active === true}
+            title={activeBackup?.active ? 'A backup is already in progress' : undefined}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
           >
             <GoPlus className="w-5 h-5" />
             Create Backup
@@ -328,173 +352,192 @@ export default function BackupsPage() {
         />
       )}
 
-      {/* Tabs */}
-      <div className="border-b border-slate-200 dark:border-slate-700 mb-6">
-        <div className="flex gap-6">
-          <button
-            id="backups"
-            onClick={() => setActiveTab('backups')}
-            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'backups'
-              ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
-              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-          >
-            Backups
-            {/* {backups.length > 0 && (
-              <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                {backups.length}
-              </span>
-            )} */}
-          </button>
-          <button
-            id="jobs"
-            onClick={() => setActiveTab('jobs')}
-            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'jobs'
-              ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
-              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-          >
-            Jobs
-            {/* {jobs.length > 0 && (
-              <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                {jobs.length}
-              </span>
-            )} */}
-          </button>
+      {/* Active Backup Banner */}
+      {activeBackup?.active && (
+        <div className="mb-6 flex items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+          <span className="flex-1 text-sm text-blue-700 dark:text-blue-300">
+            Creating backup{activeBackup.backup_name ? <> <span className="font-medium">"{activeBackup.backup_name}"</span></> : ''}...
+          </span>
+          <span className="text-xs text-blue-500 dark:text-blue-400 shrink-0">In progress</span>
         </div>
-      </div>
-
-      {/* ===== Backups Tab ===== */}
-      {activeTab === 'backups' && (
-        <>
-          {/* Loading State */}
-          {loading && (
-            <div className="flex justify-center items-center py-12">
-              <div className="text-slate-600 dark:text-slate-300">Loading backups...</div>
-            </div>
-          )}
-
-          {/* Empty State */}
-          {!loading && !error && backups.length === 0 && (
-            <div className="text-center py-12">
-              <div className="text-slate-600 dark:text-slate-300 mb-4">No backups found</div>
-              <button
-                onClick={openCreateModal}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Create your first backup
-              </button>
-            </div>
-          )}
-
-          {/* Backups List */}
-          {!loading && backups.length > 0 && (
-            <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-600">
-                  <tr>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Backup Name
-                    </th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-600">
-                  {backups.map((backup) => (
-                    <tr key={backup.name}>
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                          {backup.name}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            title='Restore'
-                            onClick={() => openRestoreModal(backup.name)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/30 rounded hover:bg-slate-100 dark:hover:bg-slate-900/50 transition-colors"
-                          >
-                            <GoSync className="w-4 h-4" />
-                          </button>
-                          <button
-                            title='Delete'
-                            onClick={() => openDeleteModal(backup.name)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/30 rounded hover:bg-slate-100 dark:hover:bg-slate-900/50 transition-colors"
-                          >
-                            <GoTrash className="w-4 h-4" />
-                          </button>
-                          <button
-                            title='Download'
-                            onClick={() => handleDownloadBackup(backup.name)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/30 rounded hover:bg-slate-100 dark:hover:bg-slate-900/50 transition-colors"
-                          >
-                            <GoDownload className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
       )}
 
-      {/* ===== Jobs Tab ===== */}
-      {activeTab === 'jobs' && (
-        <div className='bg-white dark:bg-slate-800 rounded-sm border border-slate-200 dark:border-slate-600 p-2'>
-          {jobs.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-slate-600 dark:text-slate-300">No backup jobs yet</div>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
-              {jobs.map((job) => {
-                const cfg = STATUS_CONFIG[job.status]
-                return (
-                  <div
-                    key={job.job_id}
-                    className="flex items-center gap-3 px-2 py-2 text-sm font-mono"
-                  >
-                    {/* Timestamp */}
-                    <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
-                      {formatDateTime(job.completed_at || job.started_at)}
+      {/* Loading State */}
+      {loading && (
+        <div className="flex justify-center items-center py-12">
+          <div className="text-slate-600 dark:text-slate-300">Loading backups...</div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && !error && backups.length === 0 && (
+        <div className="text-center py-12">
+          <div className="text-slate-600 dark:text-slate-300 mb-4">No backups found</div>
+          <button
+            onClick={openCreateModal}
+            disabled={activeBackup?.active === true}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
+          >
+            Create your first backup
+          </button>
+        </div>
+      )}
+
+      {/* Backups List */}
+      {!loading && backups.length > 0 && (
+        <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-600">
+              <tr>
+                <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Backup Name
+                </th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-600">
+              {backups.map((backup) => (
+                <tr key={backup.name}>
+                  <td className="px-4 py-3">
+                    <span onClick={()=>openInfoModal(backup.name)} className="text-sm font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600 hover:underline cursor-pointer">
+                      {backup.name}
                     </span>
-                    <div className='flex flex-col gap-2 flex-1 min-w-0'>
-                      <div className='flex gap-3'>
-                        {/* Status dot + label */}
-                        <span className="flex items-center gap-1.5 shrink-0">
-                          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                          <span className={`text-xs ${cfg.text}`}>{cfg.label}</span>
-                        </span>
-
-                        {/* Name */}
-                        <span className="text-sm text-slate-700 dark:text-slate-300 truncate">
-                          {job.backup_name}
-                        </span>
-                      </div>
-
-                      {/* Error */}
-                      {job.error && (
-                        <span className="text-xs text-red-500 dark:text-red-400 truncate block">
-                          {job.error}
-                        </span>
-                      )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {/* <button
+                        title="Info"
+                        onClick={() => openInfoModal(backup.name)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/30 rounded hover:bg-slate-100 dark:hover:bg-slate-900/50 transition-colors"
+                      >
+                        <GoInfo className="w-4 h-4" />
+                      </button> */}
+                      <button
+                        title="Restore"
+                        onClick={() => openRestoreModal(backup.name)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/30 rounded hover:bg-slate-100 dark:hover:bg-slate-900/50 transition-colors"
+                      >
+                        <GoSync className="w-4 h-4" />
+                      </button>
+                      <button
+                        title="Delete"
+                        onClick={() => openDeleteModal(backup.name)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/30 rounded hover:bg-slate-100 dark:hover:bg-slate-900/50 transition-colors"
+                      >
+                        <GoTrash className="w-4 h-4" />
+                      </button>
+                      <button
+                        title="Download"
+                        onClick={() => handleDownloadBackup(backup.name)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/30 rounded hover:bg-slate-100 dark:hover:bg-slate-900/50 transition-colors"
+                      >
+                        <GoDownload className="w-4 h-4" />
+                      </button>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
       {/* Create Backup Modal */}
       {showCreateModal && (
         <CreateBackupModal closeBackupModal={closeCreateModal} />
+      )}
+
+      {/* Backup Info Modal */}
+      {showInfoModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Backup Info</h3>
+              <button
+                onClick={closeInfoModal}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <GoX className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 font-mono">{infoBackupName}</p>
+
+            {loadingInfo && (
+              <div className="text-center py-8 text-slate-500 dark:text-slate-400 text-sm">Loading...</div>
+            )}
+
+            {infoError && (
+              <Notification type="error" message={infoError} compact />
+            )}
+
+            {backupInfo && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                  <div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">Original Index</div>
+                    <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{backupInfo.original_index}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">Created</div>
+                    <div className="text-sm text-slate-800 dark:text-slate-200">{formatDateTime(backupInfo.timestamp)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">Size</div>
+                    <div className="text-sm text-slate-800 dark:text-slate-200">{backupInfo.size_mb} MB</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">Space Type</div>
+                    <div className="text-sm text-slate-800 dark:text-slate-200">{backupInfo.params.space_type}</div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Index Parameters</div>
+                  <div className="bg-slate-50 dark:bg-slate-900/30 rounded-md p-3 grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">Dimensions</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.dim}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">Vectors</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.total_elements}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">M</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.M}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">ef_construction</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.ef_construction}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">Quant Level</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.quant_level}</span>
+                    </div>
+                    {backupInfo.params.sparse_dim > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 dark:text-slate-400">Sparse Dim</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.sparse_dim}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={closeInfoModal}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Restore Backup Modal */}

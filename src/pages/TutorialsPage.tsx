@@ -287,7 +287,7 @@ export default function TutorialsPage() {
     {
       id: 'create-backup',
       title: 'Create Backup',
-      description: 'Create a backup of an index. Backups can be restored later to recover data.',
+      description: 'Asynchronously create a backup of an index. The backup runs in the background — check /api/v1/backups/active to monitor progress.',
       endpoint: 'POST /api/v1/index/:indexName/backup',
       method: 'POST',
       requiresIndex: true,
@@ -400,8 +400,8 @@ export default function TutorialsPage() {
     {
       id: 'download-backup',
       title: 'Download Backup',
-      description: 'Download a backup as a .tar file. A SHA-1 key is generated from the backup name for authorization.',
-      endpoint: 'GET /api/v1/backups/:backupName/download?key=:key',
+      description: 'Download a backup as a .tar file.',
+      endpoint: 'GET /api/v1/backups/:backupName/download',
       method: 'GET',
       requiresPayload: true,
       defaultPayload: JSON.stringify({ backup_name: "my_backup" }, null, 2),
@@ -409,12 +409,10 @@ export default function TutorialsPage() {
         if (!payload) return { success: false, result: 'Payload required' }
         try {
           const { backup_name } = JSON.parse(payload)
-          const input = backup_name
-          const data = new TextEncoder().encode(input)
-          const hashBuffer = await crypto.subtle.digest('SHA-1', data)
-          const hashArray = Array.from(new Uint8Array(hashBuffer))
-          const key = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-          const downloadUrl = `/api/v1/backups/${encodeURIComponent(backup_name)}/download?key=${key}`
+          let downloadUrl = `/api/v1/backups/${encodeURIComponent(backup_name)}/download`
+          if (token) {
+            downloadUrl += `?token=${encodeURIComponent(token)}`
+          }
           const iframe = document.createElement('iframe')
           iframe.style.display = 'none'
           iframe.src = downloadUrl
@@ -463,14 +461,14 @@ export default function TutorialsPage() {
       }
     },
     {
-      id: 'list-jobs',
-      title: 'List Backup Jobs',
-      description: 'Retrieve a list of all backup jobs, including in-progress, completed, and failed jobs.',
-      endpoint: 'GET /api/v1/backups/jobs',
+      id: 'check-active-backup',
+      title: 'Check Active Backup',
+      description: 'Check if a backup is currently being created. Returns active status, backup name, and index ID when a backup is in progress.',
+      endpoint: 'GET /api/v1/backups/active',
       method: 'GET',
       run: async () => {
         try {
-          const response = await fetch('/api/v1/backups/jobs', {
+          const response = await fetch('/api/v1/backups/active', {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -478,7 +476,37 @@ export default function TutorialsPage() {
             }
           })
           if (!response.ok) {
-            throw new Error('Failed to fetch backup jobs')
+            throw new Error('Failed to check active backup')
+          }
+          const data = await response.json()
+          return { success: true, result: formatResult(data) }
+        } catch (e) {
+          return { success: false, result: `${e}` }
+        }
+      }
+    },
+    {
+      id: 'backup-info',
+      title: 'Get Backup Info',
+      description: 'Retrieve metadata about a backup including original index name, parameters, size, and creation timestamp.',
+      endpoint: 'GET /api/v1/backups/:backupName/info',
+      method: 'GET',
+      requiresPayload: true,
+      defaultPayload: JSON.stringify({ backup_name: "my_backup" }, null, 2),
+      run: async (payload) => {
+        if (!payload) return { success: false, result: 'Payload required' }
+        try {
+          const { backup_name } = JSON.parse(payload)
+          const response = await fetch(`/api/v1/backups/${encodeURIComponent(backup_name)}/info`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token && { Authorization: token })
+            }
+          })
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}))
+            throw new Error(errorData.error || 'Failed to fetch backup info')
           }
           const data = await response.json()
           return { success: true, result: formatResult(data) }
