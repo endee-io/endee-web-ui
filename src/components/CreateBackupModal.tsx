@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { BarLoader } from "react-spinners";
 import { api, type Index } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import { useNotification } from "../context/NotificationContext";
 import { useNavigate } from "react-router";
 import Notification from "./Notification";
 
@@ -23,7 +22,6 @@ export default function CreateBackupModal(params: CreateBackupParams) {
     const [loadingIndexes, setLoadingIndexes] = useState(false)
 
     const { token, handleUnauthorized } = useAuth();
-    const { showNotification } = useNotification();
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -75,8 +73,7 @@ export default function CreateBackupModal(params: CreateBackupParams) {
             }
 
             params.closeBackupModal()
-            showNotification('info', `Backup "${backupName.trim()}" getting created for index "${backupIndexName}"`)
-            navigate("/backups#jobs")
+            navigate("/backups")
         } catch (err) {
             setBackupError(err instanceof Error ? err.message : 'Failed to create backup')
         } finally {
