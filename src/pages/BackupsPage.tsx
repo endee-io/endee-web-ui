@@ -563,6 +563,28 @@ export default function BackupsPage() {
                         </div>
                       )}
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">Vectors</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.total_elements}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">M</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.M}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">ef_construction</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.ef_construction}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">Quant Level</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.quant_level}</span>
+                    </div>
+                    {backupInfo.params.sparse_dim > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 dark:text-slate-400">Sparse Dim</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.sparse_dim}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
