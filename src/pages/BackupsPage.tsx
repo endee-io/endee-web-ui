@@ -8,6 +8,8 @@ import Notification from '../components/Notification'
 
 interface Backup {
   name: string
+  original_index: string
+  timestamp: number
 }
 
 interface ActiveBackup {
@@ -89,7 +91,16 @@ export default function BackupsPage() {
         throw new Error('Failed to fetch backups.')
       }
       const data = await response.json()
-      const backupList = Array.isArray(data) ? data.map((name: string) => ({ name })) : []
+      const backupList: Backup[] = Object.entries(data).map(([name, info]) => {
+        const backupInfo = info as BackupInfo
+        return {
+          name,
+          original_index: backupInfo.original_index,
+          timestamp: backupInfo.timestamp
+        }
+      })
+      // Sort by timestamp descending (newest first)
+      backupList.sort((a, b) => b.timestamp - a.timestamp)
       setBackups(backupList)
       setError(null)
     } catch (err) {
@@ -299,8 +310,6 @@ export default function BackupsPage() {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     })
   }
 
@@ -393,6 +402,12 @@ export default function BackupsPage() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Backup Name
                 </th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Original Index
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Created At
+                </th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Actions
                 </th>
@@ -400,10 +415,20 @@ export default function BackupsPage() {
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-600">
               {backups.map((backup) => (
-                <tr key={backup.name}>
+                <tr key={backup.name} className="hover:bg-slate-50 dark:hover:bg-slate-600/50 transition-colors">
                   <td className="px-4 py-3">
-                    <span onClick={()=>openInfoModal(backup.name)} className="text-sm font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600 hover:underline cursor-pointer">
+                    <span onClick={() => openInfoModal(backup.name)} className="text-sm font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 hover:underline cursor-pointer">
                       {backup.name}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm text-slate-600 dark:text-slate-300">
+                      {backup.original_index}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                      {formatDateTime(backup.timestamp)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -452,89 +477,107 @@ export default function BackupsPage() {
 
       {/* Backup Info Modal */}
       {showInfoModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Backup Info</h3>
-              <button
-                onClick={closeInfoModal}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-              >
-                <GoX className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 font-mono">{infoBackupName}</p>
-
-            {loadingInfo && (
-              <div className="text-center py-8 text-slate-500 dark:text-slate-400 text-sm">Loading...</div>
-            )}
-
-            {infoError && (
-              <Notification type="error" message={infoError} compact />
-            )}
-
-            {backupInfo && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-                  <div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">Original Index</div>
-                    <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{backupInfo.original_index}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">Created</div>
-                    <div className="text-sm text-slate-800 dark:text-slate-200">{formatDateTime(backupInfo.timestamp)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">Size</div>
-                    <div className="text-sm text-slate-800 dark:text-slate-200">{backupInfo.size_mb} MB</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">Space Type</div>
-                    <div className="text-sm text-slate-800 dark:text-slate-200">{backupInfo.params.space_type}</div>
-                  </div>
-                </div>
-
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700">
+              <div className="flex items-start justify-between">
                 <div>
-                  <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Index Parameters</div>
-                  <div className="bg-slate-50 dark:bg-slate-900/30 rounded-md p-3 grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 dark:text-slate-400">Dimensions</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.dim}</span>
+                  <p className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Backup Details</p>
+                  <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-50 tracking-tight">{infoBackupName}</h3>
+                </div>
+                <button
+                  onClick={closeInfoModal}
+                  className="p-1.5 -mr-1.5 -mt-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-700 transition-all"
+                >
+                  <GoX className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="px-6 py-5">
+              {loadingInfo && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-5 h-5 border-2 border-slate-200 dark:border-slate-600 border-t-blue-500 rounded-full animate-spin" />
+                </div>
+              )}
+
+              {infoError && (
+                <Notification type="error" message={infoError} compact />
+              )}
+
+              {backupInfo && (
+                <div className="space-y-6">
+                  {/* Primary Info */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="col-span-1">
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Source Index</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{backupInfo.original_index}</p>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 dark:text-slate-400">Vectors</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.total_elements}</span>
+                    <div className="col-span-1">
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Created</p>
+                      <p className="text-sm text-slate-700 dark:text-slate-200">{formatDateTime(backupInfo.timestamp)}</p>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 dark:text-slate-400">M</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.M}</span>
+                    <div className="col-span-1">
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Size</p>
+                      <p className="text-sm text-slate-700 dark:text-slate-200">{backupInfo.size_mb} <span className="text-slate-400">MB</span></p>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 dark:text-slate-400">ef_construction</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.ef_construction}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 dark:text-slate-400">Quant Level</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.quant_level}</span>
-                    </div>
-                    {backupInfo.params.sparse_dim > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-slate-500 dark:text-slate-400">Sparse Dim</span>
-                        <span className="font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.sparse_dim}</span>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t border-slate-100 dark:border-slate-700" />
+
+                  {/* Index Parameters */}
+                  <div>
+                    <p className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Index Configuration</p>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">Dimensions</span>
+                        <span className="text-sm font-mono font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.dim}</span>
                       </div>
-                    )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">Vectors</span>
+                        <span className="text-sm font-mono font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.total_elements.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">Space Type</span>
+                        <span className="text-sm font-mono font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.space_type}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">M</span>
+                        <span className="text-sm font-mono font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.M}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">ef_construction</span>
+                        <span className="text-sm font-mono font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.ef_construction}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">Quant Level</span>
+                        <span className="text-sm font-mono font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.quant_level}</span>
+                      </div>
+                      {backupInfo.params.sparse_dim > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500 dark:text-slate-400">Sparse Dim</span>
+                          <span className="text-sm font-mono font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.sparse_dim}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={closeInfoModal}
-                className="px-4 py-2 bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors"
-              >
-                Close
-              </button>
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-700">
+              <div className="flex justify-end">
+                <button
+                  onClick={closeInfoModal}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -12,7 +12,6 @@ import VectorGetPage from './pages/VectorGetPage'
 import WelcomePage from './pages/WelcomePage'
 import TutorialsPage from './pages/TutorialsPage'
 import BackupsPage from './pages/BackupsPage'
-import { APP_VERSION } from './config'
 import { useTheme } from './useTheme'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { NotificationProvider } from './context/NotificationContext'
@@ -146,9 +145,9 @@ function Header() {
             </>
           )}
         </button>
-        <div className='text-xs text-slate-500 dark:text-slate-400'>
+        {/* <div className='text-xs text-slate-500 dark:text-slate-400'>
           v{APP_VERSION}
-        </div>
+        </div> */}
       </div>
     </div>
   )
