@@ -10,11 +10,11 @@ export default function CreateIndexPage() {
   const [name, setName] = useState('')
   const [spaceType, setSpaceType] = useState<SpaceType>('cosine')
   const [dimension, setDimension] = useState('')
-  const [precision, setPrecision] = useState<Precision>(Precision.INT8D)
+  const [precision, setPrecision] = useState<Precision>(Precision.INT8)
 
   // Hybrid index options
   const [isHybrid, setIsHybrid] = useState(false)
-  const [sparseDimension, setSparseDimension] = useState('')
+  const [sparseModel, setSparseModel] = useState('')
 
   // Advanced configuration
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -41,13 +41,9 @@ export default function CreateIndexPage() {
     }
 
     // Validate hybrid options
-    let sparseDimValue: number | undefined
+    let sparseModelValue: string | null = null;
     if (isHybrid) {
-      sparseDimValue = parseInt(sparseDimension)
-      if (!sparseDimension || isNaN(sparseDimValue) || sparseDimValue <= 0) {
-        setError('Sparse dimension must be a positive number for hybrid indexes')
-        return
-      }
+      sparseModelValue = sparseModel;
     }
 
     // Validate advanced options
@@ -69,7 +65,7 @@ export default function CreateIndexPage() {
     try {
       const response = await api.createIndex(name.trim(), dimValue, spaceType, {
         precision,
-        sparse_dim: sparseDimValue,
+        sparseModel: sparseModelValue,
         M: showAdvanced ? mValue : undefined,
         ef_con: showAdvanced ? efValue : undefined,
       })
@@ -188,8 +184,8 @@ export default function CreateIndexPage() {
                   disabled={submitting}
                 >
                   <option value={Precision.BINARY}>Binary</option>
-                  <option value={Precision.INT8D}>Int8D</option>
-                  <option value={Precision.INT16D}>Int16D</option>
+                  <option value={Precision.INT8}>Int8</option>
+                  <option value={Precision.INT16}>Int16</option>
                   <option value={Precision.FLOAT16}>Float16</option>
                   <option value={Precision.FLOAT32}>Float32</option>
                 </select>
@@ -217,22 +213,22 @@ export default function CreateIndexPage() {
                 Hybrid indexes support both dense vectors and sparse vectors for improved search quality
               </p>
 
-              {/* Sparse Dimension - shown when hybrid is checked */}
+              {/* Sparse Model - shown when hybrid is checked */}
               {isHybrid && (
                 <div className="mt-4 ml-7 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-md border border-purple-200 dark:border-purple-800">
-                  <label htmlFor="sparseDimension" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                    Sparse Dimension <span className="text-red-500">*</span>
+                  <label htmlFor="sparseModel" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                    Sparse Model <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="number"
-                    id="sparseDimension"
-                    value={sparseDimension}
-                    onChange={(e) => setSparseDimension(e.target.value)}
-                    placeholder="e.g., 30000"
-                    min="1"
+                  <select
+                    id="sparseModel"
+                    value={sparseModel}
+                    onChange={(e) => setSparseModel(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     disabled={submitting}
-                  />
+                  >
+                    <option value='default'>Default</option>
+                    <option value='endee_bm25'>Endee BM25</option>
+                  </select>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     The vocabulary size for sparse vectors (e.g., SPLADE model vocabulary)
                   </p>

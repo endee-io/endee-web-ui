@@ -25,7 +25,7 @@ export default function VectorInsertPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-
+  
   const isHybrid = indexInfo?.isHybrid;
 
   useEffect(() => {
@@ -280,7 +280,7 @@ export default function VectorInsertPage() {
                           disabled={submitting}
                         />
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          Non-zero indices (max: {indexInfo.sparseDimension || 'sparse_dim'})
+                          With respect to your sparse model {indexInfo?.sparseModel}
                         </p>
                       </div>
 

@@ -27,7 +27,7 @@ interface BackupInfo {
     ef_construction: number
     quant_level: number
     space_type: string
-    sparse_dim: number
+    sparse_model: string
     total_elements: number
   }
   size_mb: number
@@ -556,10 +556,10 @@ export default function BackupsPage() {
                         <span className="text-sm text-slate-500 dark:text-slate-400">Quant Level</span>
                         <span className="text-sm font-mono font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.quant_level}</span>
                       </div>
-                      {backupInfo.params.sparse_dim > 0 && (
+                      {(backupInfo.params.sparse_model == 'default' || backupInfo.params.sparse_model == 'endee_bm25') && (
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500 dark:text-slate-400">Sparse Dim</span>
-                          <span className="text-sm font-mono font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.sparse_dim}</span>
+                          <span className="text-sm text-slate-500 dark:text-slate-400">Sparse Model</span>
+                          <span className="text-sm font-mono font-medium text-slate-800 dark:text-slate-200">{backupInfo.params.sparse_model}</span>
                         </div>
                       )}
                     </div>

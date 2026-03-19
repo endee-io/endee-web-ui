@@ -174,8 +174,8 @@ export default function IndexesPage() {
                   </div>
                   {isHybridIndex(index) && (
                     <div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">Sparse Dim</div>
-                      <div className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-1">{index.sparse_dim}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">Sparse Model</div>
+                      <div className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-1">{index.sparseModel}</div>
                     </div>
                   )}
                 </div>

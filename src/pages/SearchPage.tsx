@@ -205,7 +205,7 @@ export default function SearchPage() {
                     disabled={searching}
                   />
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Non-zero indices (max: {indexInfo?.sparseDimension || 'sparse_dim'})
+                    With respect to your sparse model {indexInfo?.sparseModel}
                   </p>
                 </div>
 

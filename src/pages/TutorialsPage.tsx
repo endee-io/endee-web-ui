@@ -72,7 +72,7 @@ export default function TutorialsPage() {
             parsed.space_type,
             {
               precision: parsed.precision,
-              sparse_dim: parsed.sparse_dim,
+              sparseModel: parsed.sparse_model,
               M: parsed.M,
               ef_con: parsed.ef_con
             }

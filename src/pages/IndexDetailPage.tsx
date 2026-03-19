@@ -93,7 +93,7 @@ export default function IndexDetailPage() {
     )
   }
 
-  const isHybrid = indexInfo?.isHybrid
+  const isHybrid = indexInfo?.isHybrid;
 
   return (
     <div>
@@ -161,8 +161,8 @@ export default function IndexDetailPage() {
             </div>
             {isHybrid && (
               <div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">Sparse Dim</div>
-                <div className="text-xl font-semibold text-purple-600 dark:text-purple-400 mt-1">{indexInfo.sparseDimension}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">Sparse Model</div>
+                <div className="text-xl font-semibold text-purple-600 dark:text-purple-400 mt-1">{indexInfo.sparseModel}</div>
               </div>
             )}
             <div>

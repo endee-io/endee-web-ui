@@ -100,7 +100,7 @@ interface RawIndexListItem {
   precision: Precision;
   created_at: number;
   dimension: number;
-  sparse_dim: number;
+  sparse_model: string;
 }
 
 // Index type for list display (uses snake_case to match API response)
@@ -112,7 +112,7 @@ export interface Index {
   precision: Precision;
   created_at: number;
   dimension: number;
-  sparse_dim: number;
+  sparseModel: string;
 }
 
 export interface IndexListResponse {
@@ -136,7 +136,7 @@ export interface VectorGetRequest {
 
 // Helper function to check if an index is hybrid
 export function isHybridIndex(index: Index): boolean {
-  return index.sparse_dim > 0;
+  return (index.sparseModel == 'default' || index.sparseModel == 'endee_bm25') ;
 }
 
 // Helper function to format space type to readable state
@@ -187,7 +187,7 @@ class ApiClient {
         precision: idx.precision,
         created_at: idx.created_at,
         dimension: idx.dimension,
-        sparse_dim: idx.sparse_dim || 0,
+        sparseModel: idx.sparse_model || '',
       }));
       return { success: true, data: { indexes: mappedIndexes } };
     } catch (error) {
@@ -214,7 +214,7 @@ class ApiClient {
     spaceType: string,
     options?: {
       precision?: Precision;
-      sparse_dim?: number;
+      sparseModel?: string | null;
       M?: number;
       ef_con?: number;
     }
@@ -229,8 +229,8 @@ class ApiClient {
       if (options?.precision) {
         createOptions.precision = options.precision;
       }
-      if (options?.sparse_dim && options.sparse_dim > 0) {
-        createOptions.sparseDimension = options.sparse_dim;
+      if (options?.sparseModel) {
+        createOptions.sparseModel = options.sparseModel;
       }
       if (options?.M) {
         createOptions.M = options.M;
@@ -319,7 +319,7 @@ class ApiClient {
 
   async deleteVectorsByFilter(
     indexName: string,
-    filter: Record<string, unknown>
+    filter: Array<Record<string, unknown>>
   ): Promise<ApiResponse<{ success: boolean; deleted: number }>> {
     try {
       const index = await getEndeeClient().getIndex(indexName);
