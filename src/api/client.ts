@@ -317,6 +317,19 @@ class ApiClient {
     }
   }
 
+  async updateFilters(
+    indexName: string,
+    updates: Array<{ id: string; filter: Record<string, unknown> }>
+  ): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    try {
+      const index = await getEndeeClient().getIndex(indexName);
+      await index.updateFilters(updates);
+      return { success: true, data: { success: true, message: "Filters updated successfully" } };
+    } catch (error) {
+      return handleApiError(error);
+    }
+  }
+
   async deleteVectorsByFilter(
     indexName: string,
     filter: Array<Record<string, unknown>>

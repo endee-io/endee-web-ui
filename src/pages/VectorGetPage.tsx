@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { GoArrowLeft, GoSearch, GoTrash } from 'react-icons/go'
+import { GoArrowLeft, GoSearch, GoTrash, GoPencil } from 'react-icons/go'
 import { api } from '../api/client'
 import type { IndexDescription } from '../api/client'
 import type { VectorInfo } from 'endee'
 import Notification from '../components/Notification'
+import { BarLoader } from 'react-spinners'
 
 export default function VectorGetPage() {
   const { indexName } = useParams<{ indexName: string }>()
@@ -16,6 +17,12 @@ export default function VectorGetPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [result, setResult] = useState<VectorInfo | null>(null)
+
+  // Update filter modal state
+  const [showUpdateFilterModal, setShowUpdateFilterModal] = useState(false)
+  const [filterInput, setFilterInput] = useState('')
+  const [updatingFilter, setUpdatingFilter] = useState(false)
+  const [updateFilterError, setUpdateFilterError] = useState<string | null>(null)
 
   const isHybrid = indexInfo?.isHybrid;
 
@@ -85,6 +92,47 @@ export default function VectorGetPage() {
       setError(err instanceof Error ? err.message : 'Failed to delete vector')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const openUpdateFilterModal = () => {
+    setFilterInput(result?.filter ? JSON.stringify(result.filter, null, 2) : '{}')
+    setUpdateFilterError(null)
+    setShowUpdateFilterModal(true)
+  }
+
+  const handleUpdateFilter = async () => {
+    if (!indexName || !result) return
+
+    setUpdatingFilter(true)
+    setUpdateFilterError(null)
+
+    try {
+      const parsedFilter = JSON.parse(filterInput)
+      const response = await api.updateFilters(indexName, [
+        { id: result.id, filter: parsedFilter }
+      ])
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to update filter')
+      }
+
+      // Refresh the vector data
+      const refreshResponse = await api.getVector(indexName, { id: result.id })
+      if (refreshResponse.success && refreshResponse.data) {
+        setResult(refreshResponse.data)
+      }
+
+      setShowUpdateFilterModal(false)
+      setSuccess(`Filter updated for vector "${result.id}"`)
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        setUpdateFilterError('Invalid JSON format')
+      } else {
+        setUpdateFilterError(err instanceof Error ? err.message : 'Failed to update filter')
+      }
+    } finally {
+      setUpdatingFilter(false)
     }
   }
 
@@ -160,14 +208,24 @@ export default function VectorGetPage() {
               <span className="font-medium text-slate-500 dark:text-slate-400 uppercase shrink-0">ID</span>
               <span className="font-medium text-slate-800 dark:text-slate-100">{result.id}</span>
             </div>
-            <button
-              onClick={handleDeleteById}
-              disabled={deleting}
-              className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors disabled:bg-red-400"
-            >
-              <GoTrash className="w-4 h-4" />
-              {deleting ? 'Deleting...' : 'Delete'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={openUpdateFilterModal}
+                disabled={deleting || updatingFilter}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
+              >
+                <GoPencil className="w-4 h-4" />
+                Update Filter
+              </button>
+              <button
+                onClick={handleDeleteById}
+                disabled={deleting}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-700 border border-red-600 text-red-600 rounded-md hover:bg-red-500 dark:hover:bg-red-500 hover:text-white transition-colors disabled:bg-red-400"
+              >
+                <GoTrash className="w-4 h-4" />
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
           </div>
 
           {/* Content */}
@@ -201,6 +259,60 @@ export default function VectorGetPage() {
                 [{result.vector.slice(0, 8).map(v => v.toFixed(4)).join(', ')}
                 {result.vector.length > 8 && `, ... (${result.vector.length})`}]
               </code>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update Filter Modal */}
+      {showUpdateFilterModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">Update Filter</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              Update filter for vector: <span className="font-medium text-slate-800 dark:text-slate-200">{result?.id}</span>
+            </p>
+
+            <div className="space-y-4">
+              {updateFilterError && (
+                <Notification type="error" message={updateFilterError} compact />
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Filter (JSON)
+                </label>
+                <textarea
+                  value={filterInput}
+                  onChange={(e) => setFilterInput(e.target.value)}
+                  placeholder='{"category": "ml", "score": 95}'
+                  rows={6}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              {updatingFilter ? (
+                <BarLoader color='#155dfc' />
+              ) : (
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setShowUpdateFilterModal(false)}
+                    disabled={updatingFilter}
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateFilter}
+                    disabled={updatingFilter || !filterInput.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
+                  >
+                    Update
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
