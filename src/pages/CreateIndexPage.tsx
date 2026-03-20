@@ -230,7 +230,7 @@ export default function CreateIndexPage() {
                     <option value='endee_bm25'>Endee BM25</option>
                   </select>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    The vocabulary size for sparse vectors (e.g., SPLADE model vocabulary)
+                    The sparse vector model. Bring your own or use Endee BM25.
                   </p>
                 </div>
               )}
