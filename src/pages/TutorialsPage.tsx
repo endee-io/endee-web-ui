@@ -516,6 +516,33 @@ export default function TutorialsPage() {
       }
     },
     {
+      id: 'update-filters',
+      title: 'Update Vector Filters',
+      description: 'Update the filter metadata for one or more vectors by their IDs.',
+      endpoint: 'POST /api/v1/index/:indexName/filters/update',
+      method: 'POST',
+      requiresIndex: true,
+      requiresPayload: true,
+      defaultPayload: JSON.stringify([
+        { id: "vec_001", filter: { category: "ml", score: 95 } },
+        { id: "vec_002", filter: { category: "science", score: 80 } }
+      ], null, 2),
+      run: async (payload, idx) => {
+        if (!idx) return { success: false, result: 'Select an index' }
+        if (!payload) return { success: false, result: 'Payload required' }
+        try {
+          const updates = JSON.parse(payload)
+          const response = await api.updateFilters(idx, updates)
+          return {
+            success: response.success,
+            result: response.success ? formatResult(response.data) : response.error || 'Failed'
+          }
+        } catch (e) {
+          return { success: false, result: `Invalid JSON: ${e}` }
+        }
+      }
+    },
+    {
       id: 'delete-vector',
       title: 'Delete Vector by ID',
       description: 'Remove a specific vector from an index by its ID.',
