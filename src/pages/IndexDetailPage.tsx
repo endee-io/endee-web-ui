@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { GoArrowLeft, GoTrash, GoSearch, GoPlus, GoPackage, GoArchive } from 'react-icons/go'
+import { GoArrowLeft, GoTrash, GoSearch, GoPlus, GoPackage, GoArchive, GoSync } from 'react-icons/go'
 import { api } from '../api/client'
 import type { IndexDescription } from 'endee'
 import { useNotification } from '../context/NotificationContext'
 import CreateBackupModal from '../components/CreateBackupModal'
+import RebuildIndexModal from '../components/RebuildIndexModal'
 import Notification from '../components/Notification'
 
 export default function IndexDetailPage() {
@@ -19,7 +20,37 @@ export default function IndexDetailPage() {
   // Backup modal state
   const [showBackupModal, setShowBackupModal] = useState(false)
 
-  const { notification, clearNotification } = useNotification()
+  // Rebuild modal state
+  const [showRebuildModal, setShowRebuildModal] = useState(false)
+
+  const { notification, showNotification, clearNotification } = useNotification()
+
+  // Rebuild polling state
+  const [isRebuildPolling, setIsRebuildPolling] = useState(false)
+  const prevRebuildStatusRef = useRef<string | null>(null)
+
+  const pollRebuildStatus = useCallback(async () => {
+    if (!indexName) return
+    const response = await api.getRebuildStatus(indexName)
+    if (!response.success || !response.data) return
+    const status = response.data.status
+
+    if (prevRebuildStatusRef.current === 'in_progress' && status === 'completed') {
+      setIsRebuildPolling(false)
+      showNotification('success', `"${indexName}" has been rebuilt successfully`)
+    } else if (prevRebuildStatusRef.current === 'in_progress' && status === 'failed') {
+      setIsRebuildPolling(false)
+      showNotification('error', `Rebuild of "${indexName}" failed${response.data.error ? `: ${response.data.error}` : ''}`)
+    }
+
+    prevRebuildStatusRef.current = status
+  }, [indexName, showNotification])
+
+  useEffect(() => {
+    if (!isRebuildPolling) return
+    const interval = setInterval(pollRebuildStatus, 20000)
+    return () => clearInterval(interval)
+  }, [isRebuildPolling, pollRebuildStatus])
 
   useEffect(() => {
     if (indexName) {
@@ -31,12 +62,21 @@ export default function IndexDetailPage() {
     if (!indexName) return
     setLoading(true)
     try {
-      const response = await api.getIndexInfo(indexName)
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to fetch index info')
+      const [infoResponse, rebuildResponse] = await Promise.all([
+        api.getIndexInfo(indexName),
+        api.getRebuildStatus(indexName),
+      ])
+      if (!infoResponse.success) {
+        throw new Error(infoResponse.error || 'Failed to fetch index info')
       }
-      setIndexInfo(response.data!)
+      setIndexInfo(infoResponse.data!)
       setError(null)
+
+      // Auto-resume polling if a rebuild is already running (e.g. user navigated away and back)
+      if (rebuildResponse.success && rebuildResponse.data?.status === 'in_progress') {
+        prevRebuildStatusRef.current = 'in_progress'
+        setIsRebuildPolling(true)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load index info')
     } finally {
@@ -128,6 +168,15 @@ export default function IndexDetailPage() {
             >
               <GoArchive className="w-4 h-4" />
               Create Backup
+            </button>
+            <button
+              onClick={() => !isRebuildPolling && setShowRebuildModal(true)}
+              disabled={isRebuildPolling}
+              title={isRebuildPolling ? 'Rebuild in progress...' : undefined}
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <GoSync className={`w-4 h-4 ${isRebuildPolling ? 'animate-spin' : ''}`} />
+              {isRebuildPolling ? 'Rebuilding...' : 'Rebuild Index'}
             </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
@@ -267,6 +316,21 @@ export default function IndexDetailPage() {
       {/* Backup Modal */}
       {showBackupModal && (
         <CreateBackupModal closeBackupModal={closeBackupModal} indexName={indexName} />
+      )}
+
+      {/* Rebuild Modal */}
+      {showRebuildModal && indexInfo && (
+        <RebuildIndexModal
+          closeModal={() => setShowRebuildModal(false)}
+          indexName={indexName!}
+          currentM={indexInfo.M}
+          currentEfCon={indexInfo.efCon}
+          onRebuildStarted={(newM, newEfCon) => {
+            setIndexInfo((prev) => prev ? { ...prev, M: newM, efCon: newEfCon } : prev)
+            prevRebuildStatusRef.current = 'in_progress'
+            setIsRebuildPolling(true)
+          }}
+        />
       )}
     </div>
   )
