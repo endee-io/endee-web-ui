@@ -13,7 +13,7 @@ export default function WelcomePage() {
           <h1 className="text-4xl font-bold text-slate-800 dark:text-slate-100">Endee</h1>
         </div>
         <p className="text-lg text-slate-600 dark:text-slate-300 mb-2">
-          High Performance Vector Database
+          High Performance Vector Databse
         </p>
         <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xl mx-auto">
           Built for scale, efficiency and speed.
