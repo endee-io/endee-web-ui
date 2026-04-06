@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { GoArrowLeft, GoTrash, GoSearch, GoPlus, GoPackage, GoArchive, GoSync, GoKebabHorizontal } from 'react-icons/go'
+import { GoArrowLeft, GoTrash, GoSearch, GoPlus, GoPackage, GoArchive } from 'react-icons/go'
 import { api } from '../api/client'
 import type { IndexDescription } from 'endee'
 import { useNotification } from '../context/NotificationContext'
 import CreateBackupModal from '../components/CreateBackupModal'
-import RebuildIndexModal from '../components/RebuildIndexModal'
 import Notification from '../components/Notification'
 
 export default function IndexDetailPage() {
@@ -16,96 +15,32 @@ export default function IndexDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  // Backup modal state
   const [showBackupModal, setShowBackupModal] = useState(false)
-  const [showRebuildModal, setShowRebuildModal] = useState(false)
-  const [rebuildInProgress, setRebuildInProgress] = useState(false)
-  const [showActionsMenu, setShowActionsMenu] = useState(false)
 
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const actionsMenuRef = useRef<HTMLDivElement>(null)
-
-  const { notification, showNotification, clearNotification } = useNotification()
-
-  const stopPolling = () => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current)
-      pollIntervalRef.current = null
-    }
-  }
-
-  const startPolling = () => {
-    stopPolling()
-    pollIntervalRef.current = setInterval(async () => {
-      if (!indexName) return
-      const response = await api.getRebuildStatus(indexName)
-      if (!response.success) return
-      const status = response.data?.status
-      if (status === 'completed') {
-        stopPolling()
-        setRebuildInProgress(false)
-        loadIndexInfo()
-        showNotification('success', `"${indexName}" has been rebuilt successfully`)
-      } else if (status === 'failed') {
-        stopPolling()
-        setRebuildInProgress(false)
-        showNotification('error', response.data?.error || `Rebuild of "${indexName}" failed`)
-      }
-      // in_progress: keep polling
-    }, 10000)
-  }
+  const { notification, clearNotification } = useNotification()
 
   useEffect(() => {
-    if (indexName) loadPageData()
-    return () => stopPolling()
+    if (indexName) {
+      loadIndexInfo()
+    }
   }, [indexName])
-
-  // Close actions menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
-        setShowActionsMenu(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const loadPageData = async () => {
-    if (!indexName) return
-    setLoading(true)
-    try {
-      const [infoResponse, statusResponse] = await Promise.all([
-        api.getIndexInfo(indexName),
-        api.getRebuildStatus(indexName),
-      ])
-      if (!infoResponse.success) {
-        throw new Error(infoResponse.error || 'Failed to fetch index info')
-      }
-      setIndexInfo(infoResponse.data!)
-      setError(null)
-
-      const status = statusResponse.data?.status
-      if (status === 'in_progress') {
-        setRebuildInProgress(true)
-        startPolling()
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load index info')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const loadIndexInfo = async () => {
     if (!indexName) return
+    setLoading(true)
     try {
       const response = await api.getIndexInfo(indexName)
       if (!response.success) {
         throw new Error(response.error || 'Failed to fetch index info')
       }
       setIndexInfo(response.data!)
+      setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load index info')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -123,6 +58,14 @@ export default function IndexDetailPage() {
       setDeleting(false)
       setShowDeleteConfirm(false)
     }
+  }
+
+  const openBackupModal = () => {
+    setShowBackupModal(true)
+  }
+
+  const closeBackupModal = () => {
+    setShowBackupModal(false)
   }
 
   if (loading) {
@@ -150,7 +93,7 @@ export default function IndexDetailPage() {
     )
   }
 
-  const isHybrid = indexInfo?.isHybrid
+  const isHybrid = indexInfo?.isHybrid;
 
   return (
     <div>
@@ -164,70 +107,38 @@ export default function IndexDetailPage() {
           Back to Indexes
         </button>
         <div className="flex justify-between items-start">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">{indexName}</h1>
-            {isHybrid ? (
-              <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 text-sm font-medium rounded-full">
-                Hybrid Index
-              </span>
-            ) : (
-              <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-sm font-medium rounded-full">
-                Dense Index
-              </span>
-            )}
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">{indexName}</h1>
+              {isHybrid ? (
+                <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 text-sm font-medium rounded-full">
+                  Hybrid Index
+                </span>
+              ) : (
+                <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-sm font-medium rounded-full">
+                  Dense Index
+                </span>
+              )}
+            </div>
           </div>
-
-          {/* Actions dropdown */}
-          <div className="relative" ref={actionsMenuRef}>
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowActionsMenu((v) => !v)}
-              className="flex items-center justify-center w-9 h-9 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
-              title="Actions"
+              onClick={openBackupModal}
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
             >
-              <GoKebabHorizontal className="w-4 h-4" />
+              <GoArchive className="w-4 h-4" />
+              Create Backup
             </button>
-
-            {showActionsMenu && (
-              <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-md shadow-lg z-10">
-                <button
-                  onClick={() => { setShowActionsMenu(false); setShowBackupModal(true) }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                >
-                  <GoArchive className="w-4 h-4" />
-                  Create Backup
-                </button>
-                <button
-                  onClick={() => { if (!rebuildInProgress) { setShowActionsMenu(false); setShowRebuildModal(true) } }}
-                  disabled={rebuildInProgress}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <GoSync className={`w-4 h-4 ${rebuildInProgress ? 'animate-spin' : ''}`} />
-                  {rebuildInProgress ? 'Rebuilding...' : 'Rebuild Index'}
-                </button>
-                <div className="border-t border-slate-200 dark:border-slate-600" />
-                <button
-                  onClick={() => { setShowActionsMenu(false); setShowDeleteConfirm(true) }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                >
-                  <GoTrash className="w-4 h-4" />
-                  Delete Index
-                </button>
-              </div>
-            )}
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border border-red-600 text-red-600 rounded-md hover:bg-red-500 dark:hover:bg-red-500 hover:text-white transition-colors"
+            >
+              <GoTrash className="w-4 h-4" />
+              Delete Index
+            </button>
           </div>
         </div>
       </div>
-
-      {/* Rebuild In Progress Banner */}
-      {rebuildInProgress && (
-        <div className="mb-6 flex items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
-          <span className="flex-1 text-sm text-blue-700 dark:text-blue-300">
-            Rebuilding index <span className="font-medium">"{indexName}"</span>... Searches continue using the old index until rebuild completes.
-          </span>
-          <span className="text-xs text-blue-500 dark:text-blue-400 shrink-0">In progress</span>
-        </div>
-      )}
 
       {/* Notification */}
       {notification && (
@@ -243,11 +154,17 @@ export default function IndexDetailPage() {
       {indexInfo && (
         <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-6 mb-6">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Index Information</h2>
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
             <div>
               <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">Dimension</div>
               <div className="text-xl font-semibold text-slate-800 dark:text-slate-200 mt-1">{indexInfo.dimension}</div>
             </div>
+            {isHybrid && (
+              <div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">Sparse Model</div>
+                <div className="text-xl font-semibold text-purple-600 dark:text-purple-400 mt-1">{indexInfo.sparseModel}</div>
+              </div>
+            )}
             <div>
               <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">Total Vectors</div>
               <div className="text-xl font-semibold text-slate-800 dark:text-slate-200 mt-1">
@@ -266,16 +183,6 @@ export default function IndexDetailPage() {
               <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">M Parameter</div>
               <div className="text-xl font-semibold text-slate-800 dark:text-slate-200 mt-1">{indexInfo.M}</div>
             </div>
-            <div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">ef construction</div>
-              <div className="text-xl font-semibold text-slate-800 dark:text-slate-200 mt-1">{indexInfo.efCon}</div>
-            </div>
-            {isHybrid && (
-              <div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">Sparse Model</div>
-                <div className="text-xl font-semibold text-purple-600 dark:text-purple-400 mt-1">{indexInfo.sparseModel}</div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -359,21 +266,7 @@ export default function IndexDetailPage() {
 
       {/* Backup Modal */}
       {showBackupModal && (
-        <CreateBackupModal closeBackupModal={() => setShowBackupModal(false)} indexName={indexName} />
-      )}
-
-      {/* Rebuild Modal */}
-      {showRebuildModal && indexInfo && (
-        <RebuildIndexModal
-          closeModal={() => setShowRebuildModal(false)}
-          indexName={indexName!}
-          currentM={indexInfo.M}
-          currentEfCon={indexInfo.efCon}
-          onRebuildStarted={() => {
-            setRebuildInProgress(true)
-            startPolling()
-          }}
-        />
+        <CreateBackupModal closeBackupModal={closeBackupModal} indexName={indexName} />
       )}
     </div>
   )
