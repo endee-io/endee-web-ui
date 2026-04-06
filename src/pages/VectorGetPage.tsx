@@ -260,6 +260,18 @@ export default function VectorGetPage() {
                 {result.vector.length > 8 && `, ... (${result.vector.length})`}]
               </code>
             </div>
+
+            {result.sparseIndices && result.sparseIndices.length > 0 && (
+              <div className="flex gap-2">
+                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-16 shrink-0">Sparse</span>
+                <code className="text-slate-700 dark:text-slate-300 text-xs">
+                  [{result.sparseIndices.slice(0, 6).map((idx, i) =>
+                    `${idx}:${result.sparseValues![i].toFixed(4)}`
+                  ).join(', ')}
+                  {result.sparseIndices.length > 6 && `, ... (${result.sparseIndices.length} terms)`}]
+                </code>
+              </div>
+            )}
           </div>
         </div>
       )}
