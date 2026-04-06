@@ -245,7 +245,7 @@ export default function TutorialsPage() {
     {
       id: 'get-vector-by-id',
       title: 'Get Vector by ID',
-      description: 'Retrieve a specific vector by its unique identifier.',
+      description: 'Retrieve a specific vector by its unique identifier. For hybrid indexes, the response also includes sparse vector data (sparseIndices and sparseValues) when available.',
       endpoint: 'POST /api/v1/index/:indexName/vector/get',
       method: 'POST',
       requiresIndex: true,
