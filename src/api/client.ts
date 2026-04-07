@@ -288,13 +288,7 @@ class ApiClient {
         }
         return {
           success: true,
-          data: {
-            id: result.id,
-            meta: result.meta,
-            filter: result.filter,
-            norm: result.norm,
-            vector: result.vector,
-          },
+          data: result,
         };
       } else {
         throw new Error("Either id or filter must be provided");
