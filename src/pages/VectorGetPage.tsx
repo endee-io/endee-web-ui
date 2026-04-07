@@ -229,10 +229,10 @@ export default function VectorGetPage() {
           </div>
 
           {/* Content */}
-          <div className="space-y-2 text-sm">
+          <div className="space-y-4 text-sm">
             {result.meta && Object.keys(result.meta).length > 0 && (
               <div className="flex gap-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-16 shrink-0">Meta</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Meta</span>
                 <pre className="text-slate-700 dark:text-slate-300 text-xs overflow-x-auto">
                   {JSON.stringify(result.meta, null, 2)}
                 </pre>
@@ -241,7 +241,7 @@ export default function VectorGetPage() {
 
             {result.filter && (
               <div className="flex gap-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-16 shrink-0">Filter</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Filter</span>
                 <code className="text-slate-700 dark:text-slate-300 text-xs">
                   {JSON.stringify(result.filter, null, 2)}
                 </code>
@@ -249,26 +249,37 @@ export default function VectorGetPage() {
             )}
 
             <div className="flex gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-16 shrink-0">Norm</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Norm</span>
               <code className="text-slate-700 dark:text-slate-300 text-xs">{result.norm.toFixed(6)}</code>
             </div>
 
             <div className="flex gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-16 shrink-0">Vector</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Vector</span>
               <code className="text-slate-700 dark:text-slate-300 text-xs">
-                [{result.vector.slice(0, 8).map(v => v.toFixed(4)).join(', ')}
-                {result.vector.length > 8 && `, ... (${result.vector.length})`}]
+                [{result.vector.slice(0, 10).map(v => v.toFixed(4)).join(', ')}
+                {result.vector.length > 10 && `, ... (${result.vector.length})`}]
               </code>
             </div>
 
             {result.sparseIndices && result.sparseIndices.length > 0 && (
               <div className="flex gap-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-16 shrink-0">Sparse</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Sparse Indices</span>
                 <code className="text-slate-700 dark:text-slate-300 text-xs">
-                  [{result.sparseIndices.slice(0, 6).map((idx, i) =>
-                    `${idx}:${result.sparseValues![i].toFixed(4)}`
+                  [{result.sparseIndices.slice(0, 10).map((idx) =>
+                    `${idx}`
                   ).join(', ')}
-                  {result.sparseIndices.length > 6 && `, ... (${result.sparseIndices.length} terms)`}]
+                  {result.sparseIndices.length > 10 && `, ... (${result.sparseIndices.length} terms)`}]
+                </code>
+              </div>
+            )}
+            {result.sparseValues && result.sparseValues.length > 0 && (
+              <div className="flex gap-2">
+                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Sparse Values</span>
+                <code className="text-slate-700 dark:text-slate-300 text-xs">
+                  [{result.sparseValues.slice(0, 10).map((idx) =>
+                    `${idx}`
+                  ).join(', ')}
+                  {result.sparseValues.length > 10 && `, ... (${result.sparseValues.length} terms)`}]
                 </code>
               </div>
             )}
