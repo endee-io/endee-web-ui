@@ -20,6 +20,9 @@
     "react-router-dom": "^7.11.0",
     "react-spinners": "^0.17.0"
   },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "4.55.1"
+  },
   "devDependencies": {
     "@commitlint/cli": "^20.4.1",
     "@commitlint/config-conventional": "^20.4.1",
