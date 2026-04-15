@@ -13,6 +13,9 @@ import type {
   CreateIndexOptions,
   IndexDescription,
   VectorInfo,
+  RebuildOptions,
+  RebuildResult,
+  RebuildStatus,
 } from "endee";
 
 // Re-export types from endee for use in UI components
@@ -252,6 +255,29 @@ class ApiClient {
     try {
       await getEndeeClient().deleteIndex(indexName);
       return { success: true, data: { success: true, message: "Index deleted successfully" } };
+    } catch (error) {
+      return handleApiError(error);
+    }
+  }
+
+  async rebuildIndex(
+    indexName: string,
+    options: RebuildOptions
+  ): Promise<ApiResponse<RebuildResult>> {
+    try {
+      const index = await getEndeeClient().getIndex(indexName);
+      const result = await index.rebuild(options);
+      return { success: true, data: result };
+    } catch (error) {
+      return handleApiError(error);
+    }
+  }
+
+  async getRebuildStatus(indexName: string): Promise<ApiResponse<RebuildStatus>> {
+    try {
+      const index = await getEndeeClient().getIndex(indexName);
+      const status = await index.getRebuildStatus();
+      return { success: true, data: status };
     } catch (error) {
       return handleApiError(error);
     }
