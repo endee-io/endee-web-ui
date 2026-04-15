@@ -21,7 +21,9 @@
     "react-spinners": "^0.17.0"
   },
   "optionalDependencies": {
-    "@rollup/rollup-linux-x64-gnu": "4.55.1"
+    "@rollup/rollup-linux-x64-gnu": "4.55.1",
+    "@tailwindcss/oxide-linux-x64-gnu": "4.1.18",
+    "lightningcss-linux-x64-gnu": "1.30.2"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.4.1",
