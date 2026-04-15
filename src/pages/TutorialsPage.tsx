@@ -243,6 +243,49 @@ export default function TutorialsPage() {
       }
     },
     {
+      id: 'rebuild-index',
+      title: 'Rebuild Index',
+      description: 'Rebuild the HNSW graph for an index with new M and/or ef_construction parameters. Returns 202 immediately — the rebuild runs in the background. At least one parameter must change.',
+      endpoint: 'POST /api/v1/index/:indexName/rebuild',
+      method: 'POST',
+      requiresIndex: true,
+      requiresPayload: true,
+      defaultPayload: JSON.stringify({ M: 20, ef_con: 200 }, null, 2),
+      run: async (payload, idx) => {
+        if (!idx) return { success: false, result: 'Select an index' }
+        if (!payload) return { success: false, result: 'Payload required' }
+        try {
+          const parsed = JSON.parse(payload)
+          const options: { M?: number; efCon?: number } = {}
+          if (parsed.M !== undefined) options.M = parsed.M
+          if (parsed.ef_con !== undefined) options.efCon = parsed.ef_con
+          const response = await api.rebuildIndex(idx, options)
+          return {
+            success: response.success,
+            result: response.success ? formatResult(response.data) : response.error || 'Failed'
+          }
+        } catch (e) {
+          return { success: false, result: `Invalid JSON: ${e}` }
+        }
+      }
+    },
+    {
+      id: 'get-rebuild-status',
+      title: 'Get Rebuild Status',
+      description: 'Check the current rebuild status for an index. Returns status: idle | in_progress | completed | failed, along with timestamps and progress info.',
+      endpoint: 'GET /api/v1/index/:indexName/rebuild/status',
+      method: 'GET',
+      requiresIndex: true,
+      run: async (_payload, idx) => {
+        if (!idx) return { success: false, result: 'Select an index' }
+        const response = await api.getRebuildStatus(idx)
+        return {
+          success: response.success,
+          result: response.success ? formatResult(response.data) : response.error || 'Failed'
+        }
+      }
+    },
+    {
       id: 'get-vector-by-id',
       title: 'Get Vector by ID',
       description: 'Retrieve a specific vector by its unique identifier. For hybrid indexes, the response also includes sparse vector data (sparseIndices and sparseValues) when available.',
