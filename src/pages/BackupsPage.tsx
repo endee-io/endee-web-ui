@@ -185,6 +185,12 @@ export default function BackupsPage() {
   const handleRestoreBackup = async () => {
     if (!restoreBackupName || !restoreTargetIndex.trim()) return
 
+    const indexNamePattern = /^(?=.{1,48}$)[a-zA-Z0-9_]+$/
+    if (!indexNamePattern.test(restoreTargetIndex)) {
+      setRestoreError('Invalid index name. Index name must be alphanumeric and can contain underscores and less than 48 characters')
+      return
+    }
+
     setRestoring(true)
     setRestoreError(null)
     try {
