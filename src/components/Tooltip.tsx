@@ -1,6 +1,6 @@
-import { GoInfo } from 'react-icons/go'
+import { GoInfo } from 'react-icons/go';
 
-function Tooltip({tip} : {tip : string}) {
+function Tooltip({ tip }: { tip: string }) {
     return (
         <div className="group relative">
             <GoInfo className="w-3 h-3 text-slate-400" />
@@ -8,7 +8,7 @@ function Tooltip({tip} : {tip : string}) {
                 {tip}
             </div>
         </div>
-    )
+    );
 }
 
-export default Tooltip
+export default Tooltip;

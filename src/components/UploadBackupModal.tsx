@@ -1,79 +1,79 @@
-import { useState } from "react";
-import { BarLoader } from "react-spinners";
-import { useAuth } from "../context/AuthContext";
-import { useNotification } from "../context/NotificationContext";
-import Notification from "./Notification";
+import { useState } from 'react';
+import { BarLoader } from 'react-spinners';
+import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../context/NotificationContext';
+import Notification from './Notification';
 
 type UploadBackupParams = {
     closeUploadModal: () => void;
-}
+};
 
 export default function UploadBackupModal(params: UploadBackupParams) {
-    const [selectedFile, setSelectedFile] = useState<File | null>(null)
-    const [uploading, setUploading] = useState(false)
-    const [uploadError, setUploadError] = useState<string | null>(null)
-    const { token, handleUnauthorized } = useAuth()
-    const { showNotification } = useNotification()
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [uploading, setUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const { token, handleUnauthorized } = useAuth();
+    const { showNotification } = useNotification();
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
+        const file = e.target.files?.[0];
         if (file) {
             // Validate file extension
             if (!file.name.endsWith('.tar')) {
-                setUploadError('Please select a .tar file')
-                setSelectedFile(null)
-                return
+                setUploadError('Please select a .tar file');
+                setSelectedFile(null);
+                return;
             }
-            setSelectedFile(file)
-            setUploadError(null)
+            setSelectedFile(file);
+            setUploadError(null);
         }
-    }
+    };
 
     const handleUploadBackup = async () => {
-        if (!selectedFile) return
+        if (!selectedFile) return;
 
-        setUploading(true)
-        setUploadError(null)
+        setUploading(true);
+        setUploadError(null);
         try {
-            const formData = new FormData()
-            formData.append('backup', selectedFile)
+            const formData = new FormData();
+            formData.append('backup', selectedFile);
 
             const response = await fetch('/api/v1/backups/upload', {
                 method: 'POST',
                 headers: {
-                    ...(token && { Authorization: token })
+                    ...(token && { Authorization: token }),
                 },
-                body: formData
-            })
+                body: formData,
+            });
 
             if (!response.ok) {
                 if (response.status === 401) {
-                    handleUnauthorized()
-                    throw new Error("Authentication Token Required.")
+                    handleUnauthorized();
+                    throw new Error('Authentication Token Required.');
                 }
-                const errorData = await response.json().catch(() => ({}))
-                throw new Error(errorData.error || 'Failed to upload backup')
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to upload backup');
             }
 
-            params.closeUploadModal()
-            const backupName = selectedFile.name.replace('.tar', '')
-            showNotification('success', `Backup "${backupName}" uploaded successfully`)
+            params.closeUploadModal();
+            const backupName = selectedFile.name.replace('.tar', '');
+            showNotification('success', `Backup "${backupName}" uploaded successfully`);
         } catch (err) {
-            setUploadError(err instanceof Error ? err.message : 'Failed to upload backup')
+            setUploadError(err instanceof Error ? err.message : 'Failed to upload backup');
         } finally {
-            setUploading(false)
+            setUploading(false);
         }
-    }
+    };
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4">
-                <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">Upload Backup</h3>
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">
+                    Upload Backup
+                </h3>
 
                 <div className="space-y-4">
-                    {uploadError && (
-                        <Notification type="error" message={uploadError} compact />
-                    )}
+                    {uploadError && <Notification type="error" message={uploadError} compact />}
 
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -96,19 +96,21 @@ export default function UploadBackupModal(params: UploadBackupParams) {
                         />
                         {selectedFile && (
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                                Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                                Selected: {selectedFile.name} (
+                                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
                             </p>
                         )}
                     </div>
 
                     <div className="bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 px-3 py-2 rounded-md text-xs">
-                        <strong>Note:</strong> The backup file must be a .tar file. If a backup with the same name already exists, the upload will fail.
+                        <strong>Note:</strong> The backup file must be a .tar file. If a backup with
+                        the same name already exists, the upload will fail.
                     </div>
                 </div>
 
                 <div className="flex justify-end mt-6">
                     {uploading ? (
-                        <BarLoader color='#155dfc' />
+                        <BarLoader color="#155dfc" />
                     ) : (
                         <div className="flex gap-3 justify-end">
                             <button
@@ -130,5 +132,5 @@ export default function UploadBackupModal(params: UploadBackupParams) {
                 </div>
             </div>
         </div>
-    )
+    );
 }
