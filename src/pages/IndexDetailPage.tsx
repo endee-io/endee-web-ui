@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { GoArrowLeft, GoTrash, GoSearch, GoPlus, GoPackage, GoArchive, GoSync, GoKebabHorizontal } from 'react-icons/go'
+import { GoArrowLeft, GoTrash, GoSearch, GoPlus, GoPackage, GoArchive, GoKebabHorizontal } from 'react-icons/go'
 import { api } from '../api/client'
 import type { IndexDescription } from 'endee'
 import { useNotification } from '../context/NotificationContext'
@@ -195,14 +195,6 @@ export default function IndexDetailPage() {
                 >
                   <GoArchive className="w-4 h-4" />
                   Create Backup
-                </button>
-                <button
-                  onClick={() => { if (!rebuildInProgress) { setShowActionsMenu(false); setShowRebuildModal(true) } }}
-                  disabled={rebuildInProgress}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <GoSync className={`w-4 h-4 ${rebuildInProgress ? 'animate-spin' : ''}`} />
-                  {rebuildInProgress ? 'Rebuilding...' : 'Rebuild Index'}
                 </button>
                 <div className="border-t border-slate-200 dark:border-slate-600" />
                 <button
