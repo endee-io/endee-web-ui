@@ -139,41 +139,18 @@ export default function WelcomePage() {
                                 Integrate with SDKs
                             </h3>
                             <p className="text-slate-600 dark:text-slate-300 mt-1 mb-3">
-                                Build production applications with our official Python SDK. Full
-                                support for all features including hybrid search.
+                                Build production-grade applications with ready-to-use SDK examples
+                                for Python, TypeScript, Java, and Go with complete support for every
+                                feature, including hybrid search.
                             </p>
                             <div className="flex gap-3 mb-4">
                                 <a
-                                    href="http://docs.endee.io/python-sdk/quickstart"
+                                    href="https://docs.endee.io/quick-start"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="px-4 py-2 text-sm font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 rounded-md hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
                                 >
-                                    Python →
-                                </a>
-                                <a
-                                    href="http://docs.endee.io/typescript-sdk/quickstart"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-4 py-2 text-sm font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 rounded-md hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
-                                >
-                                    Typescript →
-                                </a>
-                                <a
-                                    href="http://docs.endee.io/java-sdk/quickstart"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-4 py-2 text-sm font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 rounded-md hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
-                                >
-                                    Java →
-                                </a>
-                                <a
-                                    href="http://docs.endee.io/go-sdk/quickstart"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-4 py-2 text-sm font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 rounded-md hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
-                                >
-                                    Golang →
+                                    Quick Start →
                                 </a>
                             </div>
                         </div>

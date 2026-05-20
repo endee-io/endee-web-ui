@@ -15,6 +15,10 @@ export default function CreateBackupModal(params: CreateBackupParams) {
     const [backupName, setBackupName] = useState('');
     const [creatingBackup, setCreatingBackup] = useState(false);
     const [backupError, setBackupError] = useState<string | null>(null);
+    const [backupNameError, setBackupNameError] = useState<string | null>(null);
+
+    const backupNamePattern = /^[a-zA-Z0-9_]{0,48}$/;
+    const backupNameValid = /^[a-zA-Z0-9_]{1,48}$/.test(backupName);
     const [backupIndexName, setBackupIndexName] = useState('');
 
     // Indexes for dropdown
@@ -50,6 +54,12 @@ export default function CreateBackupModal(params: CreateBackupParams) {
 
     const handleCreateBackup = async () => {
         if (!backupIndexName || !backupName.trim()) return;
+        if (!backupNameValid) {
+            setBackupError(
+                'Backup name must be alphanumeric with underscores only, max 48 characters.',
+            );
+            return;
+        }
 
         setCreatingBackup(true);
         setBackupError(null);
@@ -159,10 +169,31 @@ export default function CreateBackupModal(params: CreateBackupParams) {
                         <input
                             type="text"
                             value={backupName}
-                            onChange={(e) => setBackupName(e.target.value)}
-                            placeholder="Enter a name for the backup"
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                if (backupNamePattern.test(val)) {
+                                    setBackupName(val);
+                                    setBackupNameError(null);
+                                } else if (val.length > 48) {
+                                    setBackupNameError('Max 48 characters allowed.');
+                                } else {
+                                    setBackupNameError(
+                                        'Only alphanumeric characters and underscores are allowed.',
+                                    );
+                                }
+                            }}
+                            placeholder="e.g., my_backup_01"
+                            className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${backupNameError ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
                         />
+                        {backupNameError ? (
+                            <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                                {backupNameError}
+                            </p>
+                        ) : (
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                Alphanumeric characters and underscores only. Max 48 characters.
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -180,7 +211,7 @@ export default function CreateBackupModal(params: CreateBackupParams) {
                             </button>
                             <button
                                 onClick={handleCreateBackup}
-                                disabled={creatingBackup || !backupName.trim()}
+                                disabled={creatingBackup || !backupNameValid}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
                             >
                                 Create Backup

@@ -12,6 +12,10 @@ export default function RestoreBackupModal(params: RestoreBackupParams) {
     const [restoreTargetIndex, setRestoreTargetIndex] = useState('');
     const [restoring, setRestoring] = useState(false);
     const [restoreError, setRestoreError] = useState<string | null>(null);
+    const [indexNameError, setIndexNameError] = useState<string | null>(null);
+
+    const indexNamePattern = /^[a-zA-Z0-9_]{0,48}$/;
+    const indexNameValid = /^[a-zA-Z0-9_]{1,48}$/.test(restoreTargetIndex);
 
     const { token, handleUnauthorized } = useAuth();
 
@@ -85,13 +89,31 @@ export default function RestoreBackupModal(params: RestoreBackupParams) {
                     <input
                         type="text"
                         value={restoreTargetIndex}
-                        onChange={(e) => setRestoreTargetIndex(e.target.value)}
-                        placeholder="Name for the restored index"
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            if (indexNamePattern.test(val)) {
+                                setRestoreTargetIndex(val);
+                                setIndexNameError(null);
+                            } else if (val.length > 48) {
+                                setIndexNameError('Max 48 characters allowed.');
+                            } else {
+                                setIndexNameError(
+                                    'Only alphanumeric characters and underscores are allowed.',
+                                );
+                            }
+                        }}
+                        placeholder="e.g., my_restored_index"
+                        className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${indexNameError ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
                     />
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        This will create a new index with the given name from the backup data.
-                    </p>
+                    {indexNameError ? (
+                        <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                            {indexNameError}
+                        </p>
+                    ) : (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            Alphanumeric characters and underscores only. Max 48 characters.
+                        </p>
+                    )}
                 </div>
 
                 <div className="flex gap-3 justify-end mt-6">
@@ -104,7 +126,7 @@ export default function RestoreBackupModal(params: RestoreBackupParams) {
                     </button>
                     <button
                         onClick={handleRestoreBackup}
-                        disabled={restoring || !restoreTargetIndex.trim()}
+                        disabled={restoring || !indexNameValid}
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
                     >
                         {restoring ? 'Restoring...' : 'Restore'}
