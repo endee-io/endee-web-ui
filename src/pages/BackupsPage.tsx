@@ -57,6 +57,10 @@ export default function BackupsPage() {
   const [restoreTargetIndex, setRestoreTargetIndex] = useState('')
   const [restoring, setRestoring] = useState(false)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [restoreIndexNameError, setRestoreIndexNameError] = useState<string | null>(null)
+
+  const restoreIndexPattern = /^[a-zA-Z0-9_]{0,48}$/
+  const restoreIndexValid = /^[a-zA-Z0-9_]{1,48}$/.test(restoreTargetIndex)
 
   // Delete modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -183,13 +187,7 @@ export default function BackupsPage() {
   }
 
   const handleRestoreBackup = async () => {
-    if (!restoreBackupName || !restoreTargetIndex.trim()) return
-
-    const indexNamePattern = /^(?=.{1,48}$)[a-zA-Z0-9_]+$/
-    if (!indexNamePattern.test(restoreTargetIndex)) {
-      setRestoreError('Invalid index name. Index name must be alphanumeric and can contain underscores and less than 48 characters')
-      return
-    }
+    if (!restoreBackupName || !restoreIndexValid) return
 
     setRestoring(true)
     setRestoreError(null)
@@ -609,13 +607,25 @@ export default function BackupsPage() {
               <input
                 type="text"
                 value={restoreTargetIndex}
-                onChange={(e) => setRestoreTargetIndex(e.target.value)}
-                placeholder="Name for the restored index"
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (restoreIndexPattern.test(val)) {
+                    setRestoreTargetIndex(val)
+                    setRestoreIndexNameError(null)
+                  } else if (val.length > 48) {
+                    setRestoreIndexNameError('Max 48 characters allowed.')
+                  } else {
+                    setRestoreIndexNameError('Only alphanumeric characters and underscores are allowed.')
+                  }
+                }}
+                placeholder="e.g., my_restored_index"
+                className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${restoreIndexNameError ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
               />
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                This will create a new index with the given name from the backup data.
-              </p>
+              {restoreIndexNameError ? (
+                <p className="text-xs text-red-500 dark:text-red-400 mt-1">{restoreIndexNameError}</p>
+              ) : (
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Alphanumeric characters and underscores only. Max 48 characters.</p>
+              )}
             </div>
 
             <div className="flex gap-3 justify-end mt-6">
@@ -628,7 +638,7 @@ export default function BackupsPage() {
               </button>
               <button
                 onClick={handleRestoreBackup}
-                disabled={restoring || !restoreTargetIndex.trim()}
+                disabled={restoring || !restoreIndexValid}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
               >
                 {restoring ? 'Restoring...' : 'Restore'}
