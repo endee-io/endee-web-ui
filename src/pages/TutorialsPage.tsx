@@ -28,8 +28,34 @@ export default function TutorialsPage() {
   const [stepPayloads, setStepPayloads] = useState<Record<string, string>>({})
   const [stepResults, setStepResults] = useState<Record<string, StepResult>>({})
   const [runningSteps, setRunningSteps] = useState<Set<string>>(new Set())
+  const [stepErrors, setStepErrors] = useState<Record<string, string | null>>({})
 
   const { token } = useAuth();
+
+  const nameFieldPattern = /^[a-zA-Z0-9_]{1,48}$/
+  const backupPayloadSteps = new Set(['create-backup', 'restore-backup', 'delete-backup', 'download-backup', 'backup-info'])
+
+  const validateBackupPayload = (stepId: string, payload: string): string | null => {
+    if (!backupPayloadSteps.has(stepId)) return null
+    try {
+      const parsed = JSON.parse(payload)
+      if (stepId === 'create-backup') {
+        if (!nameFieldPattern.test(parsed.name || ''))
+          return '"name" must be alphanumeric with underscores only, max 48 characters.'
+      } else if (stepId === 'restore-backup') {
+        if (!nameFieldPattern.test(parsed.backup_name || ''))
+          return '"backup_name" must be alphanumeric with underscores only, max 48 characters.'
+        if (!nameFieldPattern.test(parsed.target_index_name || ''))
+          return '"target_index_name" must be alphanumeric with underscores only, max 48 characters.'
+      } else {
+        if (!nameFieldPattern.test(parsed.backup_name || ''))
+          return '"backup_name" must be alphanumeric with underscores only, max 48 characters.'
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
 
   const formatResult = (data: unknown): string => {
     if (data === null || data === undefined) return 'null'
@@ -236,49 +262,6 @@ export default function TutorialsPage() {
       run: async (_payload, idx) => {
         if (!idx) return { success: false, result: 'Select an index' }
         const response = await api.getIndexInfo(idx)
-        return {
-          success: response.success,
-          result: response.success ? formatResult(response.data) : response.error || 'Failed'
-        }
-      }
-    },
-    {
-      id: 'rebuild-index',
-      title: 'Rebuild Index',
-      description: 'Rebuild the HNSW graph for an index with new M and/or ef_construction parameters. Returns 202 immediately — the rebuild runs in the background. At least one parameter must change.',
-      endpoint: 'POST /api/v1/index/:indexName/rebuild',
-      method: 'POST',
-      requiresIndex: true,
-      requiresPayload: true,
-      defaultPayload: JSON.stringify({ M: 20, ef_con: 200 }, null, 2),
-      run: async (payload, idx) => {
-        if (!idx) return { success: false, result: 'Select an index' }
-        if (!payload) return { success: false, result: 'Payload required' }
-        try {
-          const parsed = JSON.parse(payload)
-          const options: { M?: number; efCon?: number } = {}
-          if (parsed.M !== undefined) options.M = parsed.M
-          if (parsed.ef_con !== undefined) options.efCon = parsed.ef_con
-          const response = await api.rebuildIndex(idx, options)
-          return {
-            success: response.success,
-            result: response.success ? formatResult(response.data) : response.error || 'Failed'
-          }
-        } catch (e) {
-          return { success: false, result: `Invalid JSON: ${e}` }
-        }
-      }
-    },
-    {
-      id: 'get-rebuild-status',
-      title: 'Get Rebuild Status',
-      description: 'Check the current rebuild status for an index. Returns status: idle | in_progress | completed | failed, along with timestamps and progress info.',
-      endpoint: 'GET /api/v1/index/:indexName/rebuild/status',
-      method: 'GET',
-      requiresIndex: true,
-      run: async (_payload, idx) => {
-        if (!idx) return { success: false, result: 'Select an index' }
-        const response = await api.getRebuildStatus(idx)
         return {
           success: response.success,
           result: response.success ? formatResult(response.data) : response.error || 'Failed'
@@ -658,6 +641,9 @@ export default function TutorialsPage() {
 
   const setPayload = (stepId: string, value: string) => {
     setStepPayloads(prev => ({ ...prev, [stepId]: value }))
+    if (backupPayloadSteps.has(stepId)) {
+      setStepErrors(prev => ({ ...prev, [stepId]: validateBackupPayload(stepId, value) }))
+    }
   }
 
   const getMethodColor = (method: string) => {
@@ -743,8 +729,11 @@ export default function TutorialsPage() {
                         value={getPayload(step)}
                         onChange={(e) => setPayload(step.id, e.target.value)}
                         rows={Math.min(10, (getPayload(step).match(/\n/g) || []).length + 2)}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${stepErrors[step.id] ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
                       />
+                      {stepErrors[step.id] && (
+                        <p className="text-xs text-red-500 dark:text-red-400 mt-1">{stepErrors[step.id]}</p>
+                      )}
                     </div>
                   )}
 
@@ -759,7 +748,7 @@ export default function TutorialsPage() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => runStep(step)}
-                      disabled={isRunning || (step.requiresIndex && !selectedIndex)}
+                      disabled={isRunning || (step.requiresIndex && !selectedIndex) || !!stepErrors[step.id]}
                       className={`flex items-center gap-2 px-4 py-2 rounded-md text-white transition-colors ${step.method === 'DELETE'
                         ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-400'
                         : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400'
@@ -816,7 +805,7 @@ export default function TutorialsPage() {
           </div>
         </div>
         <div className="mt-4 p-3 bg-slate-100 dark:bg-slate-800 rounded font-mono text-xs text-slate-700 dark:text-slate-300">
-          Example: <code>{`[{"year": {"$gte": 2020}}, {"type": {"$in": ["article", "paper"]}}]`}</code>
+          Example: <code>{`[{"year": {"$eq": 2024}}, {"type": {"$in": ["article", "paper"]}}]`}</code>
         </div>
       </div>
     </div>
