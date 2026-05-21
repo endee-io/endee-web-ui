@@ -8,7 +8,11 @@ type SpaceType = 'cosine' | 'euclidean' | 'inner_product'
 
 export default function CreateIndexPage() {
   const [name, setName] = useState('')
+  const [nameError, setNameError] = useState<string | null>(null)
   const [spaceType, setSpaceType] = useState<SpaceType>('cosine')
+
+  const namePattern = /^[a-zA-Z0-9_]{0,48}$/
+  const nameValid = /^[a-zA-Z0-9_]{1,48}$/.test(name)
   const [dimension, setDimension] = useState('')
   const [precision, setPrecision] = useState<Precision>(Precision.INT8)
 
@@ -110,17 +114,28 @@ export default function CreateIndexPage() {
                 <Tooltip tip="A unique identifier for your index. Only alphanumeric characters and `_` allowed." />
               </div>
               <input
-
                 id="name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (namePattern.test(val)) {
+                    setName(val)
+                    setNameError(null)
+                  } else if (val.length > 48) {
+                    setNameError('Max 48 characters allowed.')
+                  } else {
+                    setNameError('Only alphanumeric characters and underscores are allowed.')
+                  }
+                }}
                 placeholder="e.g., product_embeddings"
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${nameError ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
                 disabled={submitting}
               />
-              {/* <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  A unique identifier for your index
-                </p> */}
+              {nameError ? (
+                <p className="text-xs text-red-500 dark:text-red-400 mt-1">{nameError}</p>
+              ) : (
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Alphanumeric characters and underscores only. Max 48 characters.</p>
+              )}
             </div>
 
             {/* Dimension */}
@@ -311,7 +326,7 @@ export default function CreateIndexPage() {
             <div className="flex gap-3 pt-4">
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !nameValid}
                 className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Creating...' : isHybrid ? 'Create Hybrid Index' : 'Create Index'}
