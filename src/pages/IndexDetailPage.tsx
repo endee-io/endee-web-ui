@@ -33,6 +33,7 @@ export default function IndexDetailPage() {
     }
   }
 
+  
   const startPolling = () => {
     stopPolling()
     pollIntervalRef.current = setInterval(async () => {
