@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { GoDatabase, GoCode, GoBook, GoArrowRight, GoSearch, GoPlus, GoZap, GoArchive } from 'react-icons/go'
+import { GoDatabase, GoCode, GoBook, GoArrowRight, GoSearch, GoPlus, GoZap, GoArchive, GoShieldCheck } from 'react-icons/go'
 
 export default function WelcomePage() {
     const navigate = useNavigate()
@@ -150,6 +150,29 @@ export default function WelcomePage() {
                                 Covers: Index creation • Vector insertion • Similarity search • Filtered queries • Backup & restore
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* License CTA */}
+            <div
+                onClick={() => navigate('/license')}
+                className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-5 mb-4 hover:shadow-md hover:border-amber-400 dark:hover:border-amber-500 transition-all cursor-pointer group"
+            >
+                <div className="flex items-start gap-4">
+                    <div className="p-3 bg-amber-100 dark:bg-amber-900/50 rounded-lg">
+                        <GoShieldCheck className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+                                Get my free Trial License
+                            </h3>
+                            <GoArrowRight className="w-5 h-5 text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors" />
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-300 mt-1">
+                            Unlock all features with a free trial license. Takes less than a minute — just enter your email.
+                        </p>
                     </div>
                 </div>
             </div>

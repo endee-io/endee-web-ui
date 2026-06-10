@@ -350,6 +350,79 @@ class ApiClient {
     }
   }
 
+  // ============================================================
+  // LICENSE OPERATIONS
+  // ============================================================
+
+  async generateLicense(email: string): Promise<ApiResponse<{ message: string }>> {
+    try {
+      const token = getStoredToken()
+      const response = await fetch('/api/v1/license/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: token } : {}),
+        },
+        body: JSON.stringify({ email }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        return { success: false, error: data.error || 'Request failed' }
+      }
+      return { success: true, data: { message: data.message } }
+    } catch (error) {
+      return handleApiError(error)
+    }
+  }
+
+  async activateLicense(content: string): Promise<ApiResponse<{ message: string }>> {
+    try {
+      const token = getStoredToken()
+      const response = await fetch('/api/v1/license/validate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain',
+          ...(token ? { Authorization: token } : {}),
+        },
+        body: content,
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        return { success: false, error: data.error || 'Activation failed' }
+      }
+      return { success: true, data: { message: data.message } }
+    } catch (error) {
+      return handleApiError(error)
+    }
+  }
+
+  async getInfo(): Promise<ApiResponse<{
+    version: string
+    build_arch: string
+    machine_id?: string
+    license?: {
+      status: 'active' | 'expired' | 'not_activated'
+      license_id?: string
+      plan_type?: string
+      start_date?: string
+      end_date?: string
+    }
+  }>> {
+    try {
+      const token = getStoredToken()
+      const response = await fetch('/api/v1/info', {
+        headers: token ? { Authorization: token } : {},
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        return { success: false, error: data.error || 'Failed to fetch info' }
+      }
+      return { success: true, data }
+    } catch (error) {
+      return handleApiError(error)
+    }
+  }
+
   async deleteVectorsByFilter(
     indexName: string,
     filter: Array<Record<string, unknown>>
