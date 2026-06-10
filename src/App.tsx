@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Route, Routes, NavLink } from 'react-router-dom'
 import './App.css'
 import { IoRocketOutline } from "react-icons/io5"
-import { GoDatabase, GoSun, GoMoon, GoBook, GoLinkExternal, GoArchive, GoKey, GoShieldCheck } from 'react-icons/go'
+import { GoDatabase, GoSun, GoMoon, GoBook, GoLinkExternal, GoArchive, GoKey, GoShieldCheck, GoInfo } from 'react-icons/go'
 import IndexesPage from './pages/IndexesPage'
 import CreateIndexPage from './pages/CreateIndexPage'
 import IndexDetailPage from './pages/IndexDetailPage'
@@ -12,6 +12,8 @@ import VectorGetPage from './pages/VectorGetPage'
 import WelcomePage from './pages/WelcomePage'
 import TutorialsPage from './pages/TutorialsPage'
 import BackupsPage from './pages/BackupsPage'
+import LicensePage from './pages/LicensePage'
+import InfoPage from './pages/InfoPage'
 import { useTheme } from './useTheme'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { NotificationProvider } from './context/NotificationContext'
@@ -38,6 +40,16 @@ const NavItems = [
     name: "Tutorials",
     href: "/tutorials",
     icon: <GoBook className='h-5 w-6' />
+  },
+  {
+    name: "License",
+    href: "/license",
+    icon: <GoShieldCheck className='h-5 w-6' />
+  },
+  {
+    name: "Info",
+    href: "/info",
+    icon: <GoInfo className='h-5 w-6' />
   }
 ]
 
@@ -177,6 +189,8 @@ function App() {
                   <Route path='/indexes/:indexName/vectors' element={<VectorGetPage />} />
                   <Route path='/backups' element={<BackupsPage />} />
                   <Route path='/tutorials' element={<TutorialsPage />} />
+                  <Route path='/license' element={<LicensePage />} />
+                  <Route path='/info' element={<InfoPage />} />
                 </Routes>
               </div>
             </div>
