@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { GoShieldCheck, GoCheck, GoX } from 'react-icons/go'
+import { useRef, useState } from 'react'
+import { GoShieldCheck, GoCheck, GoX, GoUpload } from 'react-icons/go'
 import { api } from '../api/client'
 
 export default function LicensePage() {
@@ -8,9 +8,25 @@ export default function LicensePage() {
     const [generating, setGenerating] = useState(false)
 
     const [licenseContent, setLicenseContent] = useState('')
+    const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
     const [activateStatus, setActivateStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
     const [activating, setActivating] = useState(false)
     const [licenseInfo, setLicenseInfo] = useState<{ plan_type?: string; end_date?: string } | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+            const content = ev.target?.result as string
+            setLicenseContent(content.trim())
+            setUploadedFileName(file.name)
+            setActivateStatus(null)
+        }
+        reader.readAsText(file)
+        e.target.value = ''
+    }
 
     const handleGenerate = async () => {
         if (!email) return
@@ -97,12 +113,31 @@ export default function LicensePage() {
                     <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Activate License</h2>
                 </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                    Paste the full content of the <code className="bg-slate-100 dark:bg-slate-600 px-1 rounded text-xs">license.lic</code> file you received by email.
+                    Paste the content of your <code className="bg-slate-100 dark:bg-slate-600 px-1 rounded text-xs">license.lic</code> file, or upload it directly.
                 </p>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".lic"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                />
+                <div className="flex items-center gap-2 mb-3">
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-2 px-3 py-2 text-sm border border-slate-300 dark:border-slate-500 rounded-md bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    >
+                        <GoUpload className="w-4 h-4" />
+                        Upload license.lic
+                    </button>
+                    {uploadedFileName && (
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{uploadedFileName}</span>
+                    )}
+                </div>
                 <textarea
                     value={licenseContent}
-                    onChange={(e) => setLicenseContent(e.target.value)}
-                    placeholder="Paste license.lic content here..."
+                    onChange={(e) => { setLicenseContent(e.target.value); setUploadedFileName(null); }}
+                    placeholder="Or paste license.lic content here..."
                     rows={6}
                     className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-500 rounded-md bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono resize-none"
                 />
