@@ -1,8 +1,9 @@
 'use client'
 
-import { GoSync, GoServer, GoCheckCircleFill } from 'react-icons/go'
+import { GoCheckCircleFill, GoPlus } from 'react-icons/go'
 import { useSelectedDatabase } from '../context/SelectedDatabaseContext'
 import Notification from '../components/Notification'
+import { useRouter } from 'next/navigation'
 
 export default function DatabasesPage() {
   const {
@@ -11,8 +12,9 @@ export default function DatabasesPage() {
     loading,
     error,
     selectDatabase,
-    refreshDatabases,
   } = useSelectedDatabase()
+
+  const router = useRouter()
 
   const formatDate = (timestamp: number) =>
     new Date(timestamp * 1000).toLocaleDateString('en-US', {
@@ -34,14 +36,15 @@ export default function DatabasesPage() {
           </p>
         </div>
 
-        <button
-          onClick={refreshDatabases}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-600 rounded-md hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors disabled:opacity-50"
-        >
-          <GoSync className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        {!loading && !error && databases.length !== 0 && (
+          <button
+            onClick={() => router.push('/indexes/create')}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            <GoPlus className="w-5 h-5" />
+            Create Database
+          </button>
+        )}
       </div>
 
       {loading && (
@@ -67,17 +70,16 @@ export default function DatabasesPage() {
               <button
                 key={db.username}
                 onClick={() => selectDatabase(db.username)}
-                className={`text-left bg-white dark:bg-slate-700 border rounded-lg p-5 transition-all hover:shadow-md ${
-                  isSelected
-                    ? 'border-blue-500 ring-2 ring-blue-500/40'
+                className={`text-left bg-white dark:bg-slate-700 border rounded-lg p-5 transition-all hover:shadow-md ${isSelected
+                    ? 'border-blue-500 ring-1 ring-blue-500/40'
                     : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
-                }`}
+                  }`}
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-2">
-                    <span className="flex items-center justify-center w-9 h-9 rounded-md bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300">
+                    {/* <span className="flex items-center justify-center w-9 h-9 rounded-md bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300">
                       <GoServer className="w-5 h-5" />
-                    </span>
+                    </span> */}
                     <div>
                       <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100 break-all">
                         {db.username}

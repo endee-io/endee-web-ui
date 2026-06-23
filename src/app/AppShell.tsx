@@ -7,10 +7,9 @@ import { GoDatabase, GoServer, GoSun, GoMoon, GoBook, GoLinkExternal, GoArchive 
 import { useTheme } from '../useTheme'
 import Select from '../components/Select'
 import {
-  SelectedDatabaseProvider,
+  useHydrateSelectedDatabase,
   useSelectedDatabase,
 } from '../context/SelectedDatabaseContext'
-import { NotificationProvider } from '../context/NotificationContext'
 
 interface NavItem {
   name: string
@@ -145,24 +144,22 @@ function Header() {
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  useHydrateSelectedDatabase()
+
   return (
-    <SelectedDatabaseProvider>
-      <NotificationProvider>
-        <div className='flex flex-row h-screen bg-background dark:bg-slate-800'>
-          <Sidebar />
+    <div className='flex flex-row h-screen bg-background dark:bg-slate-800'>
+      <Sidebar />
 
-          <main className="flex-1 flex flex-col overflow-hidden">
-            <Header />
-            <div className='bg-card-background dark:bg-slate-800 flex-1 overflow-auto flex flex-col items-center'>
-              <div className="p-6 w-[95%]">
-                {children}
-              </div>
-            </div>
-          </main>
-
-          <footer></footer>
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <Header />
+        <div className='bg-card-background dark:bg-slate-800 flex-1 overflow-auto flex flex-col items-center'>
+          <div className="p-6 w-[95%]">
+            {children}
+          </div>
         </div>
-      </NotificationProvider>
-    </SelectedDatabaseProvider>
+      </main>
+
+      <footer></footer>
+    </div>
   )
 }

@@ -1,14 +1,7 @@
 'use client'
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-} from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useRef } from 'react'
+import { create } from 'zustand'
 import { setCurrentDatabase } from '../api/client'
 
 const SELECTED_DB_KEY = 'endee_selected_database'
@@ -20,7 +13,7 @@ export interface DatabaseInfo {
   created_at: number
 }
 
-interface SelectedDatabaseContextType {
+interface SelectedDatabaseState {
   databases: DatabaseInfo[]
   selectedDatabase: string | null
   loading: boolean
@@ -29,32 +22,22 @@ interface SelectedDatabaseContextType {
   refreshDatabases: () => Promise<void>
 }
 
-const SelectedDatabaseContext = createContext<SelectedDatabaseContextType | undefined>(
-  undefined
-)
+export const useSelectedDatabaseStore = create<SelectedDatabaseState>((set, get) => ({
+  databases: [],
+  selectedDatabase: null,
+  loading: true,
+  error: null,
 
-export function SelectedDatabaseProvider({ children }: { children: ReactNode }) {
-  const [databases, setDatabases] = useState<DatabaseInfo[]>([])
-  const [selectedDatabase, setSelectedDatabase] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const hydratedRef = useRef(false)
-
-  // Keep the api client's scope in sync with the selection.
-  useEffect(() => {
-    setCurrentDatabase(selectedDatabase)
-  }, [selectedDatabase])
-
-  const selectDatabase = useCallback((name: string) => {
-    setSelectedDatabase(name)
+  selectDatabase: (name: string) => {
+    set({ selectedDatabase: name })
     setCurrentDatabase(name)
     if (typeof window !== 'undefined') {
       localStorage.setItem(SELECTED_DB_KEY, name)
     }
-  }, [])
+  },
 
-  const refreshDatabases = useCallback(async () => {
-    setLoading(true)
+  refreshDatabases: async () => {
+    set({ loading: true })
     try {
       const response = await fetch('/api/databases', { cache: 'no-store' })
       const data = await response.json().catch(() => ({}))
@@ -64,63 +47,52 @@ export function SelectedDatabaseProvider({ children }: { children: ReactNode }) 
       const list: DatabaseInfo[] = (data.users || []).sort(
         (a: DatabaseInfo, b: DatabaseInfo) => b.created_at - a.created_at
       )
-      setDatabases(list)
-      setError(null)
 
-      // Resolve the active selection: restore persisted value if still valid,
-      // otherwise auto-select the first database.
-      setSelectedDatabase((prev) => {
-        const names = list.map((d) => d.username)
-        const stored =
-          typeof window !== 'undefined'
-            ? localStorage.getItem(SELECTED_DB_KEY)
-            : null
-        const next =
-          (prev && names.includes(prev) && prev) ||
-          (stored && names.includes(stored) && stored) ||
-          list[0]?.username ||
-          null
-        if (next && typeof window !== 'undefined') {
-          localStorage.setItem(SELECTED_DB_KEY, next)
-        }
-        setCurrentDatabase(next)
-        return next
-      })
+      // Resolve the active selection: keep the current one if still valid,
+      // otherwise restore the persisted value, otherwise auto-select the first.
+      const names = list.map((d) => d.username)
+      const prev = get().selectedDatabase
+      const stored =
+        typeof window !== 'undefined' ? localStorage.getItem(SELECTED_DB_KEY) : null
+      const next =
+        (prev && names.includes(prev) && prev) ||
+        (stored && names.includes(stored) && stored) ||
+        list[0]?.username ||
+        null
+      if (next && typeof window !== 'undefined') {
+        localStorage.setItem(SELECTED_DB_KEY, next)
+      }
+      setCurrentDatabase(next)
+
+      set({ databases: list, selectedDatabase: next, error: null })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load databases')
+      set({ error: err instanceof Error ? err.message : 'Failed to load databases' })
     } finally {
-      setLoading(false)
+      set({ loading: false })
     }
-  }, [])
+  },
+}))
 
+let hydrated = false
+
+/**
+ * Triggers the one-time initial database fetch. Mount once near the app root
+ * (e.g. in AppShell) so the store is populated regardless of which page loads.
+ */
+export function useHydrateSelectedDatabase() {
+  const mounted = useRef(false)
   useEffect(() => {
-    if (hydratedRef.current) return
-    hydratedRef.current = true
-    refreshDatabases()
-  }, [refreshDatabases])
-
-  return (
-    <SelectedDatabaseContext.Provider
-      value={{
-        databases,
-        selectedDatabase,
-        loading,
-        error,
-        selectDatabase,
-        refreshDatabases,
-      }}
-    >
-      {children}
-    </SelectedDatabaseContext.Provider>
-  )
+    if (mounted.current || hydrated) return
+    mounted.current = true
+    hydrated = true
+    useSelectedDatabaseStore.getState().refreshDatabases()
+  }, [])
 }
 
+/**
+ * Drop-in replacement for the former context hook. Returns the full store
+ * state so existing consumers keep working unchanged.
+ */
 export function useSelectedDatabase() {
-  const context = useContext(SelectedDatabaseContext)
-  if (context === undefined) {
-    throw new Error(
-      'useSelectedDatabase must be used within a SelectedDatabaseProvider'
-    )
-  }
-  return context
+  return useSelectedDatabaseStore()
 }
