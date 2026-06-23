@@ -1,9 +1,13 @@
+'use client'
+
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { GoPlus, GoArchive } from 'react-icons/go'
 import { api, isHybridIndex } from '../api/client'
 import type { Index } from '../api/client'
 import { useNotification } from '../context/NotificationContext'
+import { useSelectedDatabase } from '../context/SelectedDatabaseContext'
 import CreateBackupModalFromIndex from '../components/CreateBackupModal'
 import Notification from '../components/Notification'
 
@@ -11,17 +15,20 @@ export default function IndexesPage() {
   const [indices, setIndices] = useState<Index[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const navigate = useNavigate()
+  const router = useRouter()
 
   // Backup modal state
   const [showBackupModal, setShowBackupModal] = useState(false)
   const [backupIndexName, setBackupIndexName] = useState('')
 
   const { notification, clearNotification } = useNotification()
+  const { selectedDatabase } = useSelectedDatabase()
 
   useEffect(() => {
+    if (!selectedDatabase) return
     loadIndices()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDatabase])
 
   const loadIndices = async () => {
     setLoading(true)
@@ -66,13 +73,17 @@ export default function IndexesPage() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Indexes</h1>
-          <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">Manage your vector indexes</p>
+          <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Collections</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+            {selectedDatabase
+              ? `Collections in ${selectedDatabase}`
+              : 'Manage your vector collections'}
+          </p>
         </div>
 
-        {!loading && !error && indices.length !== 0 && (
+        {selectedDatabase && !loading && !error && indices.length !== 0 && (
           <button
-            onClick={() => navigate('/indexes/create')}
+            onClick={() => router.push('/indexes/create')}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             <GoPlus className="w-5 h-5" />
@@ -91,24 +102,33 @@ export default function IndexesPage() {
         />
       )}
 
+      {/* No database selected */}
+      {!selectedDatabase && (
+        <div className="text-center py-12">
+          <div className="text-slate-600 dark:text-slate-300">
+            Select a database to view its collections.
+          </div>
+        </div>
+      )}
+
       {/* Loading State */}
-      {loading && (
+      {selectedDatabase && loading && (
         <div className="flex justify-center items-center py-12">
-          <div className="text-slate-600 dark:text-slate-300">Loading indices...</div>
+          <div className="text-slate-600 dark:text-slate-300">Loading collections...</div>
         </div>
       )}
 
       {/* Error State */}
-      {error && (
+      {selectedDatabase && error && (
         <Notification type="error" message={error} className="mb-4" />
       )}
 
       {/* Empty State */}
-      {!loading && !error && indices.length === 0 && (
+      {selectedDatabase && !loading && !error && indices.length === 0 && (
         <div className="text-center py-12">
           <div className="text-slate-600 dark:text-slate-300 mb-4">No indexes found</div>
           <button
-            onClick={() => navigate('/indexes/create')}
+            onClick={() => router.push('/indexes/create')}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             Create your first index
@@ -125,7 +145,7 @@ export default function IndexesPage() {
               className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow"
             >
               <div className="flex justify-between items-start mb-3">
-                <Link to={`/indexes/${index.name}`} className="flex items-center gap-3">
+                <Link href={`/indexes/${index.name}`} className="flex items-center gap-3">
                   <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{index.name}</h3>
                   {isHybridIndex(index) ? (
                     <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full">
@@ -148,7 +168,7 @@ export default function IndexesPage() {
                 </div>
               </div>
 
-              <Link to={`/indexes/${index.name}`}>
+              <Link href={`/indexes/${index.name}`}>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   Created {formatDate(index.created_at)}
                 </p>

@@ -1,5 +1,7 @@
+'use client'
+
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useRouter } from 'next/navigation'
 import { GoArrowLeft, GoChevronDown, GoChevronRight } from 'react-icons/go'
 import { api, Precision } from '../api/client'
 import Tooltip from "../components/Tooltip"
@@ -27,7 +29,7 @@ export default function CreateIndexPage() {
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const navigate = useNavigate()
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,7 +80,7 @@ export default function CreateIndexPage() {
         throw new Error(response.error || 'Failed to create index')
       }
 
-      navigate('/indexes')
+      router.push('/indexes')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create index')
     } finally {
@@ -92,7 +94,7 @@ export default function CreateIndexPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => navigate('/indexes')}
+          onClick={() => router.push('/indexes')}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />
@@ -333,7 +335,7 @@ export default function CreateIndexPage() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/indexes')}
+                onClick={() => router.push('/indexes')}
                 disabled={submitting}
                 className="px-6 py-2 bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >

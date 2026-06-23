@@ -1,6 +1,8 @@
+'use client'
+
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { GoPlus, GoTrash, GoSync, GoDownload, GoUpload, GoX } from 'react-icons/go'
-import { useAuth } from '../context/AuthContext'
+import { useSelectedDatabase } from '../context/SelectedDatabaseContext'
 import { useNotification } from '../context/NotificationContext'
 import CreateBackupModal from '../components/CreateBackupModal'
 import UploadBackupModal from '../components/UploadBackupModal'
@@ -74,24 +76,27 @@ export default function BackupsPage() {
   const [loadingInfo, setLoadingInfo] = useState(false)
   const [infoError, setInfoError] = useState<string | null>(null)
 
-  const { token, handleUnauthorized } = useAuth()
+  const { selectedDatabase } = useSelectedDatabase()
   const { notification, showNotification, clearNotification } = useNotification()
 
+  // Build an internal proxy URL scoped to the selected database.
+  const dbUrl = useCallback(
+    (path: string) => {
+      const sep = path.includes('?') ? '&' : '?'
+      return `/api/backups${path}${sep}db=${encodeURIComponent(selectedDatabase ?? '')}`
+    },
+    [selectedDatabase]
+  )
+
   const loadBackups = useCallback(async () => {
+    if (!selectedDatabase) return
     setLoading(true)
     try {
-      const response = await fetch('/api/v1/backups', {
+      const response = await fetch(dbUrl(''), {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: token })
-        }
+        headers: { 'Content-Type': 'application/json' }
       })
       if (!response.ok) {
-        if (response.status === 401) {
-          handleUnauthorized()
-          throw new Error('Authentication Token Required.')
-        }
         throw new Error('Failed to fetch backups.')
       }
       const data = await response.json()
@@ -112,15 +117,13 @@ export default function BackupsPage() {
     } finally {
       setLoading(false)
     }
-  }, [token, handleUnauthorized])
+  }, [selectedDatabase, dbUrl])
 
   const loadActiveBackup = useCallback(async () => {
+    if (!selectedDatabase) return
     try {
-      const response = await fetch('/api/v1/backups/active', {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: token })
-        }
+      const response = await fetch(dbUrl('/active'), {
+        headers: { 'Content-Type': 'application/json' }
       })
       if (!response.ok) return
       const data: ActiveBackup = await response.json()
@@ -132,12 +135,14 @@ export default function BackupsPage() {
     } catch {
       // silently fail
     }
-  }, [token])
+  }, [selectedDatabase, dbUrl])
 
   useEffect(() => {
+    if (!selectedDatabase) return
     loadBackups()
     loadActiveBackup()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDatabase])
 
   // Reload backups and notify when active backup completes
   useEffect(() => {
@@ -192,20 +197,13 @@ export default function BackupsPage() {
     setRestoring(true)
     setRestoreError(null)
     try {
-      const response = await fetch(`/api/v1/backups/${encodeURIComponent(restoreBackupName)}/restore`, {
+      const response = await fetch(dbUrl(`/${encodeURIComponent(restoreBackupName)}/restore`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: token })
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ target_index_name: restoreTargetIndex.trim() })
       })
 
       if (!response.ok) {
-        if (response.status === 401) {
-          handleUnauthorized()
-          throw new Error('Authentication Token Required.')
-        }
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Failed to restore backup')
       }
@@ -234,16 +232,11 @@ export default function BackupsPage() {
 
     setDeleting(true)
     try {
-      const response = await fetch(`/api/v1/backups/${encodeURIComponent(deleteBackupName)}`, {
+      const response = await fetch(dbUrl(`/${encodeURIComponent(deleteBackupName)}`), {
         method: 'DELETE',
-        headers: { ...(token && { Authorization: token }) },
       })
 
       if (!response.ok) {
-        if (response.status === 401) {
-          handleUnauthorized()
-          throw new Error('Authentication Token Required.')
-        }
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Failed to delete backup')
       }
@@ -266,17 +259,10 @@ export default function BackupsPage() {
     setLoadingInfo(true)
     setShowInfoModal(true)
     try {
-      const response = await fetch(`/api/v1/backups/${encodeURIComponent(backupName)}/info`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: token })
-        }
+      const response = await fetch(dbUrl(`/${encodeURIComponent(backupName)}/info`), {
+        headers: { 'Content-Type': 'application/json' }
       })
       if (!response.ok) {
-        if (response.status === 401) {
-          handleUnauthorized()
-          throw new Error('Authentication Token Required.')
-        }
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Failed to fetch backup info')
       }
@@ -296,17 +282,24 @@ export default function BackupsPage() {
     setInfoError(null)
   }
 
-  const handleDownloadBackup = (backupName: string) => {
-    let downloadUrl = `/api/v1/backups/${encodeURIComponent(backupName)}/download`
-    if (token) {
-      downloadUrl += `?token=${encodeURIComponent(token)}`
+  const handleDownloadBackup = async (backupName: string) => {
+    try {
+      // Resolve the signed backend download URL via the proxy (token injected
+      // server-side), then trigger the download in a hidden iframe.
+      const response = await fetch(dbUrl(`/${encodeURIComponent(backupName)}/download`))
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || !data.url) {
+        throw new Error(data.error || 'Failed to start download')
+      }
+      const iframe = document.createElement('iframe')
+      iframe.style.display = 'none'
+      iframe.src = data.url
+      document.body.appendChild(iframe)
+      setTimeout(() => { document.body.removeChild(iframe) }, 60000)
+      showNotification('success', `Downloading backup "${backupName}"`)
+    } catch (err) {
+      showNotification('error', err instanceof Error ? err.message : 'Failed to download backup')
     }
-    const iframe = document.createElement('iframe')
-    iframe.style.display = 'none'
-    iframe.src = downloadUrl
-    document.body.appendChild(iframe)
-    setTimeout(() => { document.body.removeChild(iframe) }, 60000)
-    showNotification('success', `Downloading backup "${backupName}"`)
   }
 
   const formatDateTime = (timestamp: number) => {
@@ -323,9 +316,11 @@ export default function BackupsPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Backups</h1>
-          <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">Manage your index backups</p>
+          <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+            {selectedDatabase ? `Backups in ${selectedDatabase}` : 'Manage your backups'}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className={`flex items-center gap-2 ${selectedDatabase ? '' : 'hidden'}`}>
           <button
             onClick={openUploadModal}
             className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
@@ -365,8 +360,17 @@ export default function BackupsPage() {
         />
       )}
 
+      {/* No database selected */}
+      {!selectedDatabase && (
+        <div className="text-center py-12">
+          <div className="text-slate-600 dark:text-slate-300">
+            Select a database to view its backups.
+          </div>
+        </div>
+      )}
+
       {/* Active Backup Banner */}
-      {activeBackup?.active && (
+      {selectedDatabase && activeBackup?.active && (
         <div className="mb-6 flex items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
           <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
           <span className="flex-1 text-sm text-blue-700 dark:text-blue-300">
@@ -377,14 +381,14 @@ export default function BackupsPage() {
       )}
 
       {/* Loading State */}
-      {loading && (
+      {selectedDatabase && loading && (
         <div className="flex justify-center items-center py-12">
           <div className="text-slate-600 dark:text-slate-300">Loading backups...</div>
         </div>
       )}
 
       {/* Empty State */}
-      {!loading && !error && backups.length === 0 && (
+      {selectedDatabase && !loading && !error && backups.length === 0 && (
         <div className="text-center py-12">
           <div className="text-slate-600 dark:text-slate-300 mb-4">No backups found</div>
           <button
@@ -398,7 +402,7 @@ export default function BackupsPage() {
       )}
 
       {/* Backups List */}
-      {!loading && backups.length > 0 && (
+      {selectedDatabase && !loading && backups.length > 0 && (
         <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
           <table className="w-full">
             <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-600">

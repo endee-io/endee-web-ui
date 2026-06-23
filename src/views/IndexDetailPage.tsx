@@ -1,63 +1,33 @@
+'use client'
+
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { GoArrowLeft, GoTrash, GoSearch, GoPlus, GoPackage, GoArchive, GoKebabHorizontal } from 'react-icons/go'
 import { api } from '../api/client'
 import type { IndexDescription } from 'endee'
 import { useNotification } from '../context/NotificationContext'
 import CreateBackupModal from '../components/CreateBackupModal'
-import RebuildIndexModal from '../components/RebuildIndexModal'
 import Notification from '../components/Notification'
 
 export default function IndexDetailPage() {
-  const { indexName } = useParams<{ indexName: string }>()
-  const navigate = useNavigate()
+  const params = useParams()
+  const indexName = params?.indexName as string
+  const router = useRouter()
   const [indexInfo, setIndexInfo] = useState<IndexDescription | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showBackupModal, setShowBackupModal] = useState(false)
-  const [showRebuildModal, setShowRebuildModal] = useState(false)
-  const [rebuildInProgress, setRebuildInProgress] = useState(false)
   const [showActionsMenu, setShowActionsMenu] = useState(false)
 
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const actionsMenuRef = useRef<HTMLDivElement>(null)
 
-  const { notification, showNotification, clearNotification } = useNotification()
-
-  const stopPolling = () => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current)
-      pollIntervalRef.current = null
-    }
-  }
-
-  
-  const startPolling = () => {
-    stopPolling()
-    pollIntervalRef.current = setInterval(async () => {
-      if (!indexName) return
-      const response = await api.getRebuildStatus(indexName)
-      if (!response.success) return
-      const status = response.data?.status
-      if (status === 'completed') {
-        stopPolling()
-        setRebuildInProgress(false)
-        loadIndexInfo()
-        showNotification('success', `"${indexName}" has been rebuilt successfully`)
-      } else if (status === 'failed') {
-        stopPolling()
-        setRebuildInProgress(false)
-        showNotification('error', response.data?.error || `Rebuild of "${indexName}" failed`)
-      }
-      // in_progress: keep polling
-    }, 10000)
-  }
+  const { notification, clearNotification } = useNotification()
 
   useEffect(() => {
     if (indexName) loadPageData()
-    return () => stopPolling()
   }, [indexName])
 
   // Close actions menu on outside click
@@ -75,38 +45,16 @@ export default function IndexDetailPage() {
     if (!indexName) return
     setLoading(true)
     try {
-      const [infoResponse, statusResponse] = await Promise.all([
-        api.getIndexInfo(indexName),
-        api.getRebuildStatus(indexName),
-      ])
+      const infoResponse = await api.getIndexInfo(indexName)
       if (!infoResponse.success) {
         throw new Error(infoResponse.error || 'Failed to fetch index info')
       }
       setIndexInfo(infoResponse.data!)
       setError(null)
-
-      const status = statusResponse.data?.status
-      if (status === 'in_progress') {
-        setRebuildInProgress(true)
-        startPolling()
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load index info')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const loadIndexInfo = async () => {
-    if (!indexName) return
-    try {
-      const response = await api.getIndexInfo(indexName)
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to fetch index info')
-      }
-      setIndexInfo(response.data!)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load index info')
     }
   }
 
@@ -118,7 +66,7 @@ export default function IndexDetailPage() {
       if (!response.success) {
         throw new Error(response.error || 'Failed to delete index')
       }
-      navigate('/indexes')
+      router.push('/indexes')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete index')
       setDeleting(false)
@@ -140,7 +88,7 @@ export default function IndexDetailPage() {
     return (
       <div className="p-6">
         <button
-          onClick={() => navigate('/indexes')}
+          onClick={() => router.push('/indexes')}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />
@@ -158,7 +106,7 @@ export default function IndexDetailPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => navigate('/indexes')}
+          onClick={() => router.push('/indexes')}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />
@@ -210,17 +158,6 @@ export default function IndexDetailPage() {
           </div>
         </div>
       </div>
-
-      {/* Rebuild In Progress Banner */}
-      {rebuildInProgress && (
-        <div className="mb-6 flex items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
-          <span className="flex-1 text-sm text-blue-700 dark:text-blue-300">
-            Rebuilding index <span className="font-medium">"{indexName}"</span>... Searches continue using the old index until rebuild completes.
-          </span>
-          <span className="text-xs text-blue-500 dark:text-blue-400 shrink-0">In progress</span>
-        </div>
-      )}
 
       {/* Notification */}
       {notification && (
@@ -277,7 +214,7 @@ export default function IndexDetailPage() {
       <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Operations</h2>
       <div className="grid md:grid-cols-3 gap-4">
         <Link
-          to={`/indexes/${indexName}/search`}
+          href={`/indexes/${indexName}/search`}
           className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow flex items-start gap-4"
         >
           <div className="p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
@@ -292,7 +229,7 @@ export default function IndexDetailPage() {
         </Link>
 
         <Link
-          to={`/indexes/${indexName}/insert`}
+          href={`/indexes/${indexName}/insert`}
           className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow flex items-start gap-4"
         >
           <div className="p-3 bg-green-100 dark:bg-green-900/50 rounded-lg">
@@ -307,7 +244,7 @@ export default function IndexDetailPage() {
         </Link>
 
         <Link
-          to={`/indexes/${indexName}/vectors`}
+          href={`/indexes/${indexName}/vectors`}
           className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow flex items-start gap-4"
         >
           <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
@@ -353,20 +290,6 @@ export default function IndexDetailPage() {
       {/* Backup Modal */}
       {showBackupModal && (
         <CreateBackupModal closeBackupModal={() => setShowBackupModal(false)} indexName={indexName} />
-      )}
-
-      {/* Rebuild Modal */}
-      {showRebuildModal && indexInfo && (
-        <RebuildIndexModal
-          closeModal={() => setShowRebuildModal(false)}
-          indexName={indexName!}
-          currentM={indexInfo.M}
-          currentEfCon={indexInfo.efCon}
-          onRebuildStarted={() => {
-            setRebuildInProgress(true)
-            startPolling()
-          }}
-        />
       )}
     </div>
   )

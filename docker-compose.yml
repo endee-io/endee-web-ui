@@ -1,0 +1,37 @@
+# Local-first stack: Next.js frontend + Endee vector DB server.
+#
+# IMPORTANT — the browser talks to the Endee server DIRECTLY (not proxied
+# through the frontend). That has two consequences reflected below:
+#   1. The Endee server's port is published to the host so the browser can
+#      reach it.
+#   2. ENDEE_URL must be an address reachable from the USER'S BROWSER
+#      (e.g. http://localhost:8080), NOT the internal compose service name
+#      "endee" — that name only resolves inside the compose network.
+#   3. The Endee server must allow CORS from the frontend's origin
+#      (http://localhost:3000 below).
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: endee-web-ui:latest
+    ports:
+      - "3000:3000"
+    environment:
+      # Host-reachable URL of the Endee server (consumed by the browser).
+      # Override per environment, e.g. http://192.168.1.50:8080
+      - ENDEE_URL=http://localhost:8080
+    depends_on:
+      - endee
+    restart: unless-stopped
+
+  endee:
+    # Replace with the actual Endee server image.
+    image: endee/server:latest
+    ports:
+      # Published to the host so the browser can call it directly.
+      - "8080:8080"
+    restart: unless-stopped
+    # Ensure the Endee server is configured to allow CORS from
+    # http://localhost:3000 (or whichever origin serves the frontend).

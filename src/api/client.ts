@@ -1,11 +1,14 @@
 /**
- * API Client for communicating with Endee Vector Database backend
+ * API Client for communicating with the Endee Vector Database backend.
  *
- * This module wraps the endee package to provide a consistent interface
- * for the frontend application.
+ * All requests are routed through Next server proxy routes (/api/collections,
+ * /api/backups) which inject the per-database root-impersonation token
+ * `root/<database>:<ROOT_TOKEN>` server-side. The browser never holds the root
+ * token. Every call is scoped to the currently-selected database, set via
+ * `setCurrentDatabase()` (driven by SelectedDatabaseContext).
  */
 
-import { Endee, Precision } from "endee";
+import { Precision } from "endee";
 import type {
   VectorItem,
   QueryOptions,
@@ -13,9 +16,6 @@ import type {
   CreateIndexOptions,
   IndexDescription,
   VectorInfo,
-  RebuildOptions,
-  RebuildResult,
-  RebuildStatus,
 } from "endee";
 
 // Re-export types from endee for use in UI components
@@ -23,65 +23,19 @@ export type { VectorItem, QueryOptions, QueryResult, CreateIndexOptions, IndexDe
 export { Precision };
 
 // ============================================================
-// INITIALIZE ENDEE CLIENT
+// SELECTED DATABASE
 // ============================================================
 
-const AUTH_TOKEN_KEY = 'endee_auth_token'
+let currentDatabase: string | null = null;
 
-// Callback for 401 errors (will be set by AuthContext)
-let onUnauthorized: (() => void) | null = null
-
-// Current Endee instance (will be recreated when token changes)
-let endee: Endee | null = null
-
-// Get the current token from localStorage
-export function getStoredToken(): string | null {
-  return localStorage.getItem(AUTH_TOKEN_KEY)
+/** Set the database all subsequent API calls are scoped to. */
+export function setCurrentDatabase(database: string | null): void {
+  currentDatabase = database;
 }
 
-// Create or get the Endee client instance
-function getEndeeClient(): Endee {
-  if (!endee) {
-    const token = getStoredToken()
-    endee = new Endee(token)
-    endee.setBaseUrl("/api/v1")
-  }
-  return endee
-}
-
-// Reinitialize the Endee client with a new token
-export function reinitializeEndee(token: string | null): void {
-  endee = new Endee(token)
-  endee.setBaseUrl("/api/v1")
-}
-
-// Set the callback for 401 errors
-export function setOnUnauthorized(callback: (() => void) | null): void {
-  onUnauthorized = callback
-}
-
-// Helper to check if an error is a 401 Unauthorized
-function isUnauthorizedError(error: unknown): boolean {
-  if (error instanceof Error) {
-    const message = error.message.toLowerCase()
-    return message.includes('401') || message.includes('invalid token')
-  }
-  return false
-}
-
-// Wrapper to handle API errors with 401 detection
-function handleApiError<T>(error: unknown): ApiResponse<T> {
-  console.error("API request failed:", error)
-
-  // Check for 401 and trigger auth modal
-  if (isUnauthorizedError(error) && onUnauthorized) {
-    onUnauthorized()
-  }
-
-  return {
-    success: false,
-    error: error instanceof Error ? error.message : "Unknown error",
-  }
+/** The database API calls are currently scoped to (or null). */
+export function getCurrentDatabase(): string | null {
+  return currentDatabase;
 }
 
 // ============================================================
@@ -157,6 +111,51 @@ function formatSpaceType(space_type : string) : string {
 }
 
 // ============================================================
+// FETCH HELPERS
+// ============================================================
+
+class NoDatabaseError extends Error {
+  constructor() {
+    super("No database selected.");
+  }
+}
+
+/** Append the current `db` query param to a proxy path. */
+function withDb(path: string): string {
+  if (!currentDatabase) throw new NoDatabaseError();
+  const sep = path.includes("?") ? "&" : "?";
+  return `${path}${sep}db=${encodeURIComponent(currentDatabase)}`;
+}
+
+/** Issue a request to a proxy route and unwrap to { data } or throw. */
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(withDb(path), {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+    cache: "no-store",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      (payload as { error?: string }).error || `Request failed (${response.status})`
+    );
+  }
+  return payload as T;
+}
+
+function toApiResponse<T>(fn: () => Promise<T>): Promise<ApiResponse<T>> {
+  return fn()
+    .then((data) => ({ success: true, data }))
+    .catch((error) => {
+      console.error("API request failed:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    });
+}
+
+// ============================================================
 // API CLIENT
 // ============================================================
 
@@ -166,23 +165,21 @@ class ApiClient {
   // ============================================================
 
   async health(): Promise<ApiResponse<{ status: string }>> {
-    try {
-      await getEndeeClient().listIndexes();
-      return { success: true, data: { status: "ok" } };
-    } catch (error) {
-      return handleApiError(error);
-    }
+    return toApiResponse(async () => {
+      await request<{ indexes: RawIndexListItem[] }>("/api/collections");
+      return { status: "ok" };
+    });
   }
 
   // ============================================================
-  // INDEX OPERATIONS
+  // COLLECTION (INDEX) OPERATIONS
   // ============================================================
 
   async listIndexes(): Promise<ApiResponse<IndexListResponse>> {
-    try {
-      const response = await getEndeeClient().listIndexes();
-      const rawIndexes = (response as { indexes: RawIndexListItem[] }).indexes || [];
-      const mappedIndexes: Index[] = rawIndexes.map((idx: RawIndexListItem) => ({
+    return toApiResponse(async () => {
+      const response = await request<{ indexes: RawIndexListItem[] }>("/api/collections");
+      const rawIndexes = response.indexes || [];
+      const indexes: Index[] = rawIndexes.map((idx) => ({
         name: idx.name,
         M: idx.M,
         total_elements: idx.total_elements,
@@ -190,25 +187,16 @@ class ApiClient {
         precision: idx.precision,
         created_at: idx.created_at,
         dimension: idx.dimension,
-        sparseModel: idx.sparse_model || '',
+        sparseModel: idx.sparse_model || "",
       }));
-      return { success: true, data: { indexes: mappedIndexes } };
-    } catch (error) {
-      return handleApiError(error);
-    }
+      return { indexes };
+    });
   }
 
   async getIndexInfo(indexName: string): Promise<ApiResponse<IndexDescription>> {
-    try {
-      const index = await getEndeeClient().getIndex(indexName);
-      const description = index.describe();
-      return {
-        success: true,
-        data: description,
-      };
-    } catch (error) {
-      return handleApiError(error);
-    }
+    return toApiResponse(() =>
+      request<IndexDescription>(`/api/collections/${encodeURIComponent(indexName)}`)
+    );
   }
 
   async createIndex(
@@ -222,65 +210,34 @@ class ApiClient {
       ef_con?: number;
     }
   ): Promise<ApiResponse<{ success: boolean; message: string }>> {
-    try {
+    return toApiResponse(async () => {
       const createOptions: CreateIndexOptions = {
         name: indexName,
         dimension: dimension,
         spaceType: spaceType as "cosine" | "l2" | "ip",
       };
+      if (options?.precision) createOptions.precision = options.precision;
+      if (options?.sparseModel) createOptions.sparseModel = options.sparseModel;
+      if (options?.M) createOptions.M = options.M;
+      if (options?.ef_con) createOptions.efCon = options.ef_con;
 
-      if (options?.precision) {
-        createOptions.precision = options.precision;
-      }
-      if (options?.sparseModel) {
-        createOptions.sparseModel = options.sparseModel;
-      }
-      if (options?.M) {
-        createOptions.M = options.M;
-      }
-      if (options?.ef_con) {
-        createOptions.efCon = options.ef_con;
-      }
-
-      await getEndeeClient().createIndex(createOptions);
-      return { success: true, data: { success: true, message: "Index created successfully" } };
-    } catch (error) {
-      return handleApiError(error);
-    }
+      await request("/api/collections", {
+        method: "POST",
+        body: JSON.stringify(createOptions),
+      });
+      return { success: true, message: "Index created successfully" };
+    });
   }
 
   async deleteIndex(
     indexName: string
   ): Promise<ApiResponse<{ success: boolean; message: string }>> {
-    try {
-      await getEndeeClient().deleteIndex(indexName);
-      return { success: true, data: { success: true, message: "Index deleted successfully" } };
-    } catch (error) {
-      return handleApiError(error);
-    }
-  }
-
-  async rebuildIndex(
-    indexName: string,
-    options: RebuildOptions
-  ): Promise<ApiResponse<RebuildResult>> {
-    try {
-      const index = await getEndeeClient().getIndex(indexName);
-      const result = await index.rebuild(options);
-      return { success: true, data: result };
-    } catch (error) {
-      return handleApiError(error);
-    }
-  }
-
-  async getRebuildStatus(indexName: string): Promise<ApiResponse<RebuildStatus>> {
-    try {
-      const index = await getEndeeClient().getIndex(indexName);
-      const status = await index.getRebuildStatus();
-      return { success: true, data: status };
-    } catch (error) {
-      return handleApiError(error);
-    }
+    return toApiResponse(async () => {
+      await request(`/api/collections/${encodeURIComponent(indexName)}`, {
+        method: "DELETE",
+      });
+      return { success: true, message: "Index deleted successfully" };
+    });
   }
 
   // ============================================================
@@ -291,82 +248,70 @@ class ApiClient {
     indexName: string,
     vectors: VectorItem[]
   ): Promise<ApiResponse<{ success: boolean; inserted: number }>> {
-    try {
-      const index = await getEndeeClient().getIndex(indexName);
-      await index.upsert(vectors);
-      return { success: true, data: { success: true, inserted: vectors.length } };
-    } catch (error) {
-      return handleApiError(error);
-    }
+    return toApiResponse(async () => {
+      await request(`/api/collections/${encodeURIComponent(indexName)}/vectors`, {
+        method: "POST",
+        body: JSON.stringify({ vectors }),
+      });
+      return { success: true, inserted: vectors.length };
+    });
   }
 
   async getVector(
     indexName: string,
-    request: VectorGetRequest
+    requestParams: VectorGetRequest
   ): Promise<ApiResponse<VectorInfo>> {
-    try {
-      const index = await getEndeeClient().getIndex(indexName);
-
-      if (request.id) {
-        const result = await index.getVector(request.id);
-        if (!result) {
-          throw new Error("Vector not found");
-        }
-        return {
-          success: true,
-          data: result,
-        };
-      } else {
+    return toApiResponse(async () => {
+      if (!requestParams.id) {
         throw new Error("Either id or filter must be provided");
       }
-    } catch (error) {
-      return handleApiError(error);
-    }
+      return request<VectorInfo>(
+        `/api/collections/${encodeURIComponent(indexName)}/vectors?id=${encodeURIComponent(
+          requestParams.id
+        )}`
+      );
+    });
   }
 
   async deleteVectorById(
     indexName: string,
     vectorId: string
   ): Promise<ApiResponse<{ success: boolean; message: string }>> {
-    try {
-      const index = await getEndeeClient().getIndex(indexName);
-      await index.deleteVector(vectorId);
-      return { success: true, data: { success: true, message: "Vector deleted successfully" } };
-    } catch (error) {
-      return handleApiError(error);
-    }
+    return toApiResponse(async () => {
+      await request(
+        `/api/collections/${encodeURIComponent(indexName)}/vectors?id=${encodeURIComponent(
+          vectorId
+        )}`,
+        { method: "DELETE" }
+      );
+      return { success: true, message: "Vector deleted successfully" };
+    });
   }
 
   async updateFilters(
     indexName: string,
     updates: Array<{ id: string; filter: Record<string, unknown> }>
   ): Promise<ApiResponse<{ success: boolean; message: string }>> {
-    try {
-      const index = await getEndeeClient().getIndex(indexName);
-      await index.updateFilters(updates);
-      return { success: true, data: { success: true, message: "Filters updated successfully" } };
-    } catch (error) {
-      return handleApiError(error);
-    }
+    return toApiResponse(async () => {
+      await request(`/api/collections/${encodeURIComponent(indexName)}/vectors`, {
+        method: "PATCH",
+        body: JSON.stringify({ updates }),
+      });
+      return { success: true, message: "Filters updated successfully" };
+    });
   }
 
   async deleteVectorsByFilter(
     indexName: string,
     filter: Array<Record<string, unknown>>
   ): Promise<ApiResponse<{ success: boolean; deleted: number }>> {
-    try {
-      const index = await getEndeeClient().getIndex(indexName);
-      const result = await index.deleteWithFilter(filter);
-      return {
-        success: true,
-        data: {
-          success: true,
-          deleted: typeof result === "number" ? result : 0,
-        },
-      };
-    } catch (error) {
-      return handleApiError(error);
-    }
+    return toApiResponse(async () => {
+      const result = await request<{ deleted: number }>(
+        `/api/collections/${encodeURIComponent(indexName)}/vectors`,
+        { method: "DELETE", body: JSON.stringify({ filter }) }
+      );
+      return { success: true, deleted: result.deleted ?? 0 };
+    });
   }
 
   // ============================================================
@@ -375,41 +320,30 @@ class ApiClient {
 
   async searchVectors(
     indexName: string,
-    request: SearchRequest
+    searchRequest: SearchRequest
   ): Promise<ApiResponse<QueryResult[]>> {
-    try {
-      const index = await getEndeeClient().getIndex(indexName);
-
+    return toApiResponse(async () => {
       const queryOptions: QueryOptions = {
-        vector: request.vector,
-        topK: request.k,
+        vector: searchRequest.vector,
+        topK: searchRequest.k,
       };
-
-      if (request.ef) {
-        queryOptions.ef = request.ef;
-      }
-      if (request.filter) {
+      if (searchRequest.ef) queryOptions.ef = searchRequest.ef;
+      if (searchRequest.filter) {
         try {
-          queryOptions.filter = JSON.parse(request.filter);
+          queryOptions.filter = JSON.parse(searchRequest.filter);
         } catch {
-          // If it's not valid JSON, pass as-is
+          // If it's not valid JSON, pass as-is (omit)
         }
       }
-      if (request.include_vectors) {
-        queryOptions.includeVectors = request.include_vectors;
-      }
-      if (request.sparse_indices) {
-        queryOptions.sparseIndices = request.sparse_indices;
-      }
-      if (request.sparse_values) {
-        queryOptions.sparseValues = request.sparse_values;
-      }
+      if (searchRequest.include_vectors) queryOptions.includeVectors = searchRequest.include_vectors;
+      if (searchRequest.sparse_indices) queryOptions.sparseIndices = searchRequest.sparse_indices;
+      if (searchRequest.sparse_values) queryOptions.sparseValues = searchRequest.sparse_values;
 
-      const results = await index.query(queryOptions);
-      return { success: true, data: results };
-    } catch (error) {
-      return handleApiError(error);
-    }
+      return request<QueryResult[]>(
+        `/api/collections/${encodeURIComponent(indexName)}/query`,
+        { method: "POST", body: JSON.stringify(queryOptions) }
+      );
+    });
   }
 }
 

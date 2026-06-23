@@ -1,8 +1,10 @@
+'use client'
+
 import { useEffect, useState } from "react";
 import { BarLoader } from "react-spinners";
 import { api, type Index } from "../api/client";
-import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router";
+import { useSelectedDatabase } from "../context/SelectedDatabaseContext";
+import { useRouter } from 'next/navigation'
 import Notification from "./Notification";
 
 type CreateBackupParams = {
@@ -25,8 +27,8 @@ export default function CreateBackupModal(params: CreateBackupParams) {
     const [indexes, setIndexes] = useState<Index[]>([])
     const [loadingIndexes, setLoadingIndexes] = useState(false)
 
-    const { token, handleUnauthorized } = useAuth();
-    const navigate = useNavigate();
+    const { selectedDatabase } = useSelectedDatabase();
+    const router = useRouter();
 
     useEffect(() => {
         if (params.indexName) {
@@ -58,26 +60,22 @@ export default function CreateBackupModal(params: CreateBackupParams) {
         setCreatingBackup(true)
         setBackupError(null)
         try {
-            const response = await fetch(`/api/v1/index/${encodeURIComponent(backupIndexName)}/backup`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token && { Authorization: token })
-                },
-                body: JSON.stringify({ name: backupName.trim() })
-            })
+            const response = await fetch(
+                `/api/collections/${encodeURIComponent(backupIndexName)}/backup?db=${encodeURIComponent(selectedDatabase ?? '')}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: backupName.trim() })
+                }
+            )
 
             if (!response.ok) {
-                if (response.status === 401) {
-                    handleUnauthorized()
-                    throw new Error("Authentication Token Required.")
-                }
                 const errorData = await response.json().catch(() => ({}))
                 throw new Error(errorData.error || 'Failed to create backup')
             }
 
             params.closeBackupModal()
-            navigate("/backups")
+            router.push("/backups")
         } catch (err) {
             setBackupError(err instanceof Error ? err.message : 'Failed to create backup')
         } finally {

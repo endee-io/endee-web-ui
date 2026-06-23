@@ -1,5 +1,7 @@
+'use client'
+
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useRouter } from 'next/navigation'
 import { GoArrowLeft, GoPlus, GoTrash } from 'react-icons/go'
 import { api } from '../api/client'
 import type { IndexDescription, VectorItem } from 'endee'
@@ -15,8 +17,9 @@ interface VectorInput {
 }
 
 export default function VectorInsertPage() {
-  const { indexName } = useParams<{ indexName: string }>()
-  const navigate = useNavigate()
+  const params = useParams()
+  const indexName = params?.indexName as string
+  const router = useRouter()
   const [indexInfo, setIndexInfo] = useState<IndexDescription | null>(null)
   const [loadingIndex, setLoadingIndex] = useState(true)
   const [vectors, setVectors] = useState<VectorInput[]>([
@@ -175,7 +178,7 @@ export default function VectorInsertPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => navigate(`/indexes/${indexName}`)}
+          onClick={() => router.push(`/indexes/${indexName}`)}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />
@@ -359,7 +362,7 @@ export default function VectorInsertPage() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(`/indexes/${indexName}`)}
+            onClick={() => router.push(`/indexes/${indexName}`)}
             disabled={submitting}
             className="px-6 py-2 bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors disabled:opacity-50"
           >

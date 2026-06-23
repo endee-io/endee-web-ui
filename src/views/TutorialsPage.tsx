@@ -1,8 +1,10 @@
+'use client'
+
 import { useState } from 'react'
 import { GoPlay, GoCheck, GoX, GoChevronDown, GoChevronRight, GoTrash } from 'react-icons/go'
 import { api } from '../api/client'
 import type { QueryResult } from '../api/client'
-import { useAuth } from '../context/AuthContext'
+import { useSelectedDatabase } from '../context/SelectedDatabaseContext'
 
 interface TutorialStep {
   id: string
@@ -30,7 +32,10 @@ export default function TutorialsPage() {
   const [runningSteps, setRunningSteps] = useState<Set<string>>(new Set())
   const [stepErrors, setStepErrors] = useState<Record<string, string | null>>({})
 
-  const { token } = useAuth();
+  const { selectedDatabase } = useSelectedDatabase();
+
+  // ?db=<selected> suffix for the internal proxy routes.
+  const dbq = `db=${encodeURIComponent(selectedDatabase ?? '')}`
 
   const nameFieldPattern = /^[a-zA-Z0-9_]{1,48}$/
   const backupPayloadSteps = new Set(['create-backup', 'restore-backup', 'delete-backup', 'download-backup', 'backup-info'])
@@ -299,14 +304,14 @@ export default function TutorialsPage() {
       endpoint: 'GET /api/v1/health',
       method: 'GET',
       run: async () => {
-        const response = await fetch('/api/v1/health');
+        const response = await fetch(`/api/collections?${dbq}`);
         if (!response.ok) {
-          throw new Error('Failed to fetch backups')
+          throw new Error('Failed to reach the server')
         }
-        const data = await response.json()
+        await response.json()
         return {
           success: true,
-          result: formatResult(data)
+          result: formatResult({ status: 'ok' })
         }
       }
     },
@@ -324,12 +329,9 @@ export default function TutorialsPage() {
         if (!payload) return { success: false, result: 'Payload required' }
         try {
           const { name } = JSON.parse(payload)
-          const response = await fetch(`/api/v1/index/${encodeURIComponent(idx)}/backup`, {
+          const response = await fetch(`/api/collections/${encodeURIComponent(idx)}/backup?${dbq}`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token && ({ Authorization: token }))
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name })
           })
           if (!response.ok) {
@@ -350,9 +352,8 @@ export default function TutorialsPage() {
       method: 'GET',
       run: async () => {
         try {
-          const response = await fetch('/api/v1/backups', {
-            method: "GET",
-            headers: { ...(token && ({ Authorization: token })) }
+          const response = await fetch(`/api/backups?${dbq}`, {
+            method: "GET"
           })
           if (!response.ok) {
             throw new Error('Failed to fetch backups')
@@ -379,12 +380,9 @@ export default function TutorialsPage() {
         if (!payload) return { success: false, result: 'Payload required' }
         try {
           const { backup_name, target_index_name } = JSON.parse(payload)
-          const response = await fetch(`/api/v1/backups/${encodeURIComponent(backup_name)}/restore`, {
+          const response = await fetch(`/api/backups/${encodeURIComponent(backup_name)}/restore?${dbq}`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token && ({ Authorization: token }))
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ target_index_name })
           })
           if (!response.ok) {
@@ -409,9 +407,8 @@ export default function TutorialsPage() {
         if (!payload) return { success: false, result: 'Payload required' }
         try {
           const { backup_name } = JSON.parse(payload)
-          const response = await fetch(`/api/v1/backups/${encodeURIComponent(backup_name)}`, {
-            method: 'DELETE',
-            headers: { ...(token && { Authorization: token }) }
+          const response = await fetch(`/api/backups/${encodeURIComponent(backup_name)}?${dbq}`, {
+            method: 'DELETE'
           })
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
@@ -435,13 +432,14 @@ export default function TutorialsPage() {
         if (!payload) return { success: false, result: 'Payload required' }
         try {
           const { backup_name } = JSON.parse(payload)
-          let downloadUrl = `/api/v1/backups/${encodeURIComponent(backup_name)}/download`
-          if (token) {
-            downloadUrl += `?token=${encodeURIComponent(token)}`
+          const resolve = await fetch(`/api/backups/${encodeURIComponent(backup_name)}/download?${dbq}`)
+          const info = await resolve.json().catch(() => ({}))
+          if (!resolve.ok || !info.url) {
+            throw new Error(info.error || 'Failed to start download')
           }
           const iframe = document.createElement('iframe')
           iframe.style.display = 'none'
-          iframe.src = downloadUrl
+          iframe.src = info.url
           document.body.appendChild(iframe)
           setTimeout(() => { document.body.removeChild(iframe) }, 60000)
           return { success: true, result: `Download started for "${backup_name}"` }
@@ -471,9 +469,8 @@ export default function TutorialsPage() {
           })
           const formData = new FormData()
           formData.append('backup', file)
-          const response = await fetch('/api/v1/backups/upload', {
+          const response = await fetch(`/api/backups/upload?${dbq}`, {
             method: 'POST',
-            headers: { ...(token && { Authorization: token }) },
             body: formData
           })
           if (!response.ok) {
@@ -494,12 +491,9 @@ export default function TutorialsPage() {
       method: 'GET',
       run: async () => {
         try {
-          const response = await fetch('/api/v1/backups/active', {
+          const response = await fetch(`/api/backups/active?${dbq}`, {
             method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token && { Authorization: token })
-            }
+            headers: { 'Content-Type': 'application/json' }
           })
           if (!response.ok) {
             throw new Error('Failed to check active backup')
@@ -523,12 +517,9 @@ export default function TutorialsPage() {
         if (!payload) return { success: false, result: 'Payload required' }
         try {
           const { backup_name } = JSON.parse(payload)
-          const response = await fetch(`/api/v1/backups/${encodeURIComponent(backup_name)}/info`, {
+          const response = await fetch(`/api/backups/${encodeURIComponent(backup_name)}/info?${dbq}`, {
             method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token && { Authorization: token })
-            }
+            headers: { 'Content-Type': 'application/json' }
           })
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))

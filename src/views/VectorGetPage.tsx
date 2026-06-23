@@ -1,5 +1,7 @@
+'use client'
+
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useRouter } from 'next/navigation'
 import { GoArrowLeft, GoSearch, GoTrash, GoPencil } from 'react-icons/go'
 import { api } from '../api/client'
 import type { IndexDescription } from '../api/client'
@@ -8,8 +10,8 @@ import Notification from '../components/Notification'
 import { BarLoader } from 'react-spinners'
 
 export default function VectorGetPage() {
-  const { indexName } = useParams<{ indexName: string }>()
-  const navigate = useNavigate()
+  const params = useParams(); const indexName = params?.indexName as string
+  const router = useRouter()
   const [indexInfo, setIndexInfo] = useState<IndexDescription | null>(null)
   const [vectorId, setVectorId] = useState('')
   const [searching, setSearching] = useState(false)
@@ -141,7 +143,7 @@ export default function VectorGetPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => navigate(`/indexes/${indexName}`)}
+          onClick={() => router.push(`/indexes/${indexName}`)}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />
