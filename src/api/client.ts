@@ -26,6 +26,7 @@ import type {
   DatabaseInfo,
   DbType,
   TokenType,
+  TokenInfo,
 } from "endee"
 
 // Re-export the SDK types the UI builds on, so views import them from one place.
@@ -45,6 +46,7 @@ export type {
   DatabaseInfo,
   DbType,
   TokenType,
+  TokenInfo,
 }
 
 /** Database tiers, mirrors the SDK's VALID_DB_TYPES. */
@@ -106,6 +108,14 @@ export interface CreateDatabaseResult {
   db_token: string
   db_type?: string
   message?: string
+  [key: string]: unknown
+}
+
+/** Result of creating a token — includes the one-time `db_token` (db_name:secret). */
+export interface CreateTokenResult {
+  name: string
+  token_type?: string
+  db_token: string
   [key: string]: unknown
 }
 
@@ -425,6 +435,36 @@ class ApiClient {
   async downloadBackupUrl(backupName: string): Promise<ApiResponse<{ url: string }>> {
     return toApiResponse(() =>
       request<{ url: string }>(`/api/backups/${enc(backupName)}/download`)
+    )
+  }
+
+  // ── tokens (db-scoped) ────────────────────────────────────
+
+  async listTokens(): Promise<ApiResponse<TokenInfo[]>> {
+    return toApiResponse(async () => {
+      const res = await request<{ tokens: TokenInfo[] }>("/api/tokens")
+      return res.tokens || []
+    })
+  }
+
+  /** Mint a new token for the selected database. Returns the one-time db_token. */
+  async createToken(
+    name: string,
+    tokenType: TokenType
+  ): Promise<ApiResponse<CreateTokenResult>> {
+    return toApiResponse(() =>
+      request<CreateTokenResult>("/api/tokens", {
+        method: "POST",
+        body: JSON.stringify({ name, token_type: tokenType }),
+      })
+    )
+  }
+
+  async deleteToken(name: string): Promise<ApiResponse<Record<string, unknown>>> {
+    return toApiResponse(() =>
+      request<Record<string, unknown>>(`/api/tokens/${enc(name)}`, {
+        method: "DELETE",
+      })
     )
   }
 

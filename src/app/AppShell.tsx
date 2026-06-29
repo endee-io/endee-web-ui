@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { IoRocketOutline } from "react-icons/io5"
-import { GoDatabase, GoServer, GoSun, GoMoon, GoBook, GoLinkExternal, GoArchive } from 'react-icons/go'
+import { GoDatabase, GoServer, GoSun, GoMoon, GoBook, GoLinkExternal, GoArchive, GoKey } from 'react-icons/go'
 import { useTheme } from '../useTheme'
 import Select from '../components/Select'
 import {
@@ -26,6 +26,7 @@ const GeneralNav: NavItem[] = [
 // Section 2: scoped to the selected database.
 const DatabaseNav: NavItem[] = [
   { name: "Collections", href: "/collections", icon: <GoDatabase className='h-5 w-6' /> },
+  { name: "Tokens", href: "/tokens", icon: <GoKey className='h-5 w-6' /> },
   { name: "Backups", href: "/backups", icon: <GoArchive className='h-5 w-6' /> },
   { name: "Tutorials", href: "/tutorials", icon: <GoBook className='h-5 w-6' /> },
 ]
