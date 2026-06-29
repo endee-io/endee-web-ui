@@ -2,16 +2,12 @@
 
 import { useEffect, useRef } from 'react'
 import { create } from 'zustand'
-import { setCurrentDatabase } from '../api/client'
+import { api, setCurrentDatabase } from '../api/client'
+import type { DatabaseInfo } from '../api/client'
 
 const SELECTED_DB_KEY = 'endee_selected_database'
 
-export interface DatabaseInfo {
-  username: string
-  user_type: string
-  is_active: boolean
-  created_at: number
-}
+export type { DatabaseInfo }
 
 interface SelectedDatabaseState {
   databases: DatabaseInfo[]
@@ -39,25 +35,24 @@ export const useSelectedDatabaseStore = create<SelectedDatabaseState>((set, get)
   refreshDatabases: async () => {
     set({ loading: true })
     try {
-      const response = await fetch('/api/databases', { cache: 'no-store' })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load databases')
+      const res = await api.listDatabases()
+      if (!res.success || !res.data) {
+        throw new Error(res.error || 'Failed to load databases')
       }
-      const list: DatabaseInfo[] = (data.users || []).sort(
-        (a: DatabaseInfo, b: DatabaseInfo) => b.created_at - a.created_at
+      const list: DatabaseInfo[] = [...res.data].sort(
+        (a, b) => Number(b.created_at ?? 0) - Number(a.created_at ?? 0)
       )
 
       // Resolve the active selection: keep the current one if still valid,
       // otherwise restore the persisted value, otherwise auto-select the first.
-      const names = list.map((d) => d.username)
+      const names = list.map((d) => d.db_name)
       const prev = get().selectedDatabase
       const stored =
         typeof window !== 'undefined' ? localStorage.getItem(SELECTED_DB_KEY) : null
       const next =
         (prev && names.includes(prev) && prev) ||
         (stored && names.includes(stored) && stored) ||
-        list[0]?.username ||
+        list[0]?.db_name ||
         null
       if (next && typeof window !== 'undefined') {
         localStorage.setItem(SELECTED_DB_KEY, next)

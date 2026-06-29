@@ -1,5 +1,6 @@
-import { backupFetch, requireDatabase } from "@/lib/endeeServer"
-import { errorResponse, passthroughJson } from "@/lib/apiRoute"
+import { NextResponse } from "next/server"
+import { getImpersonatedClient, requireDatabase } from "@/lib/endeeServer"
+import { errorResponse } from "@/lib/apiRoute"
 
 export const dynamic = "force-dynamic"
 
@@ -7,8 +8,8 @@ export const dynamic = "force-dynamic"
 export async function GET(request: Request) {
   try {
     const db = requireDatabase(request)
-    const upstream = await backupFetch(db, "/backups", { method: "GET" })
-    return passthroughJson(upstream)
+    const result = await getImpersonatedClient(db).listBackups()
+    return NextResponse.json(result)
   } catch (error) {
     return errorResponse(error)
   }

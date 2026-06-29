@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { GoPlay, GoCheck, GoX, GoChevronDown, GoChevronRight, GoTrash } from 'react-icons/go'
 import { api } from '../api/client'
-import type { QueryResult } from '../api/client'
+import type { ApiResponse, ObjectInput, RebuildFieldSpec } from '../api/client'
 import { useSelectedDatabase } from '../context/SelectedDatabaseContext'
 
 interface TutorialStep {
@@ -13,8 +13,8 @@ interface TutorialStep {
   endpoint: string
   method: string
   defaultPayload?: string
-  run: (payload?: string, selectedIndex?: string) => Promise<{ success: boolean; result: string }>
-  requiresIndex?: boolean
+  run: (payload?: string, collection?: string) => Promise<{ success: boolean; result: string }>
+  requiresCollection?: boolean
   requiresPayload?: boolean
 }
 
@@ -25,16 +25,18 @@ interface StepResult {
 }
 
 export default function TutorialsPage() {
-  const [selectedIndex, setSelectedIndex] = useState<string>('tutorial_index')
-  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set(['create-index', 'insert-vectors', 'search-vectors']))
+  const [selectedCollection, setSelectedCollection] = useState<string>('tutorial_collection')
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(
+    new Set(['create-collection', 'insert-objects', 'search-dense'])
+  )
   const [stepPayloads, setStepPayloads] = useState<Record<string, string>>({})
   const [stepResults, setStepResults] = useState<Record<string, StepResult>>({})
   const [runningSteps, setRunningSteps] = useState<Set<string>>(new Set())
   const [stepErrors, setStepErrors] = useState<Record<string, string | null>>({})
 
-  const { selectedDatabase } = useSelectedDatabase();
+  const { selectedDatabase } = useSelectedDatabase()
 
-  // ?db=<selected> suffix for the internal proxy routes.
+  // ?db=<selected> suffix for the proxy routes still hit via raw fetch (upload).
   const dbq = `db=${encodeURIComponent(selectedDatabase ?? '')}`
 
   const nameFieldPattern = /^[a-zA-Z0-9_]{1,48}$/
@@ -50,8 +52,8 @@ export default function TutorialsPage() {
       } else if (stepId === 'restore-backup') {
         if (!nameFieldPattern.test(parsed.backup_name || ''))
           return '"backup_name" must be alphanumeric with underscores only, max 48 characters.'
-        if (!nameFieldPattern.test(parsed.target_index_name || ''))
-          return '"target_index_name" must be alphanumeric with underscores only, max 48 characters.'
+        if (!nameFieldPattern.test(parsed.target_collection_name || ''))
+          return '"target_collection_name" must be alphanumeric with underscores only, max 48 characters.'
       } else {
         if (!nameFieldPattern.test(parsed.backup_name || ''))
           return '"backup_name" must be alphanumeric with underscores only, max 48 characters.'
@@ -68,391 +70,439 @@ export default function TutorialsPage() {
     return JSON.stringify(data, null, 2)
   }
 
-  const formatVectorResult = (results: QueryResult[]): string => {
-    return JSON.stringify(results.map(r => ({
-      id: r.id,
-      similarity: r.similarity,
-      distance: r.distance,
-      meta: r.meta,
-      norm: r.norm,
-      filter: r.filter,
-      vector: r.vector
-    })), null, 2)
-  }
+  /** Map an ApiResponse into the tutorial's {success, result} shape. */
+  const apiResult = <T,>(response: ApiResponse<T>) => ({
+    success: response.success,
+    result: response.success ? formatResult(response.data) : response.error || 'Failed',
+  })
 
   const tutorialSteps: TutorialStep[] = [
     {
-      id: 'create-index',
-      title: 'Create Index',
-      description: 'Create a new vector index with specified dimensions and configuration.',
-      endpoint: 'POST /api/v1/index/create',
+      id: 'create-collection',
+      title: 'Create Collection',
+      description:
+        'Create a collection with one or more named, typed fields. This example adds a dense "embedding" field and a "keywords" sparse field.',
+      endpoint: 'POST /api/v2/collections',
       method: 'POST',
       requiresPayload: true,
-      defaultPayload: JSON.stringify({
-        index_name: "tutorial_index",
-        dim: 4,
-        space_type: "cosine",
-      }, null, 2),
+      defaultPayload: JSON.stringify(
+        {
+          name: 'tutorial_collection',
+          fields: [
+            { name: 'embedding', type: 'vector', params: { dimension: 4, space_type: 'cosine', precision: 'int8' } },
+            { name: 'keywords', type: 'sparse', sparse_model: 'default' },
+          ],
+        },
+        null,
+        2
+      ),
       run: async (payload) => {
         if (!payload) return { success: false, result: 'Payload required' }
         try {
           const parsed = JSON.parse(payload)
-          const response = await api.createIndex(
-            parsed.index_name,
-            parsed.dim,
-            parsed.space_type,
-            {
-              precision: parsed.precision,
-              sparseModel: parsed.sparse_model,
-              M: parsed.M,
-              ef_con: parsed.ef_con
-            }
-          )
-          return {
-            success: response.success,
-            result: response.success ? formatResult(response.data) : response.error || 'Failed'
-          }
+          const response = await api.createCollection({ name: parsed.name, fields: parsed.fields })
+          if (response.success && parsed.name) setSelectedCollection(parsed.name)
+          return apiResult(response)
         } catch (e) {
           return { success: false, result: `Invalid JSON: ${e}` }
         }
-      }
+      },
     },
     {
-      id: 'insert-vectors',
-      title: 'Insert Vectors',
-      description: 'Insert one or more vectors into an index with optional metadata and filters.',
-      endpoint: 'POST /api/v1/index/:indexName/vector/insert',
+      id: 'insert-objects',
+      title: 'Insert Objects',
+      description:
+        'Upsert objects. Each object carries values for any subset of the collection’s fields, plus optional meta and filter tags.',
+      endpoint: 'POST /api/v2/collections/:collectionName/objects',
       method: 'POST',
-      requiresIndex: true,
+      requiresCollection: true,
       requiresPayload: true,
-      defaultPayload: JSON.stringify([
-        {
-          id: "vec_001",
-          vector: [0.1, 0.2, 0.3, 0.4],
-          meta: { title: "Document 1", category: "tech" },
-          filter: { year: 2024, type: "article" }
-        },
-        {
-          id: "vec_002",
-          vector: [0.5, 0.6, 0.7, 0.8],
-          meta: { title: "Document 2", category: "science" },
-          filter: { year: 2023, type: "paper" }
-        },
-        {
-          id: "vec_003",
-          vector: [0.2, 0.3, 0.4, 0.5],
-          meta: { title: "Document 3", category: "tech" },
-          filter: { year: 2024, type: "blog" }
-        }
-      ], null, 2),
+      defaultPayload: JSON.stringify(
+        [
+          {
+            id: 'obj_001',
+            fields: { embedding: [0.1, 0.2, 0.3, 0.4], keywords: { indices: [3, 17, 42], values: [0.9, 0.5, 0.2] } },
+            meta: { title: 'Document 1', category: 'tech' },
+            filter: { category: 'tech', year: 2024 },
+          },
+          {
+            id: 'obj_002',
+            fields: { embedding: [0.5, 0.6, 0.7, 0.8], keywords: { indices: [5, 17, 90], values: [0.7, 0.6, 0.1] } },
+            meta: { title: 'Document 2', category: 'science' },
+            filter: { category: 'science', year: 2023 },
+          },
+          {
+            id: 'obj_003',
+            fields: { embedding: [0.2, 0.3, 0.4, 0.5] },
+            meta: { title: 'Document 3', category: 'tech' },
+            filter: { category: 'tech', year: 2024 },
+          },
+        ],
+        null,
+        2
+      ),
       run: async (payload, idx) => {
-        if (!idx) return { success: false, result: 'Select an index' }
+        if (!idx) return { success: false, result: 'Select a collection' }
         if (!payload) return { success: false, result: 'Payload required' }
         try {
-          const parsed = JSON.parse(payload)
-
-          console.log("Parsed =>", parsed);
-          // Convert filter objects to JSON strings for each vector
-          const response = await api.insertVectors(idx, parsed)
-          return {
-            success: response.success,
-            result: response.success ? formatResult(response.data) : response.error || 'Failed'
-          }
+          const parsed = JSON.parse(payload) as ObjectInput[]
+          return apiResult(await api.upsertObjects(idx, parsed))
         } catch (e) {
           return { success: false, result: `Invalid JSON: ${e}` }
         }
-      }
+      },
     },
     {
-      id: 'search-vectors',
-      title: 'Search Vectors',
-      description: 'Find the k most similar vectors to a query vector using semantic search.',
-      endpoint: 'POST /api/v1/index/:indexName/search',
+      id: 'search-dense',
+      title: 'Search (single field)',
+      description:
+        'Search one field. The response is one ranked list keyed by that field name. "limit" is the max hits for the field.',
+      endpoint: 'POST /api/v2/collections/:collectionName/search',
       method: 'POST',
-      requiresIndex: true,
+      requiresCollection: true,
       requiresPayload: true,
-      defaultPayload: JSON.stringify({
-        vector: [0.1, 0.2, 0.3, 0.4],
-        k: 5,
-        include_vectors: true
-      }, null, 2),
+      defaultPayload: JSON.stringify(
+        { fields: { embedding: { query: [0.1, 0.2, 0.3, 0.4], limit: 5 } } },
+        null,
+        2
+      ),
       run: async (payload, idx) => {
-        if (!idx) return { success: false, result: 'Select an index' }
+        if (!idx) return { success: false, result: 'Select a collection' }
         if (!payload) return { success: false, result: 'Payload required' }
         try {
-          const parsed = JSON.parse(payload)
-          // Convert filter to JSON string if it's an object/array
-          const request = {
-            ...parsed,
-            filter: parsed.filter ? JSON.stringify(parsed.filter) : undefined
-          }
-          const response = await api.searchVectors(idx, request)
-          if (response.success && response.data) {
-            return { success: true, result: formatVectorResult(response.data) }
-          }
-          return {
-            success: response.success,
-            result: response.error || 'No results'
-          }
+          return apiResult(await api.search(idx, JSON.parse(payload)))
         } catch (e) {
           return { success: false, result: `Invalid JSON: ${e}` }
         }
-      }
+      },
+    },
+    {
+      id: 'search-hybrid',
+      title: 'Hybrid Search + Rerank',
+      description:
+        'Query several fields at once and fuse the per-field lists into a single ranked list with Reciprocal Rank Fusion (rerank).',
+      endpoint: 'POST /api/v2/collections/:collectionName/search',
+      method: 'POST',
+      requiresCollection: true,
+      requiresPayload: true,
+      defaultPayload: JSON.stringify(
+        {
+          fields: {
+            embedding: { query: [0.1, 0.2, 0.3, 0.4], limit: 10 },
+            keywords: { query: { indices: [3, 17], values: [0.8, 0.4] }, limit: 10 },
+          },
+          rerank: { limit: 5, rrfK: 60 },
+        },
+        null,
+        2
+      ),
+      run: async (payload, idx) => {
+        if (!idx) return { success: false, result: 'Select a collection' }
+        if (!payload) return { success: false, result: 'Payload required' }
+        try {
+          return apiResult(await api.search(idx, JSON.parse(payload)))
+        } catch (e) {
+          return { success: false, result: `Invalid JSON: ${e}` }
+        }
+      },
     },
     {
       id: 'search-with-filter',
       title: 'Search with Filters',
-      description: 'Search vectors with metadata filters to narrow down results.',
-      endpoint: 'POST /api/v1/index/:indexName/search',
+      description: 'Apply a metadata filter to a search to narrow the candidates.',
+      endpoint: 'POST /api/v2/collections/:collectionName/search',
       method: 'POST',
-      requiresIndex: true,
+      requiresCollection: true,
       requiresPayload: true,
-      defaultPayload: JSON.stringify({
-        vector: [0.1, 0.2, 0.3, 0.4],
-        k: 5,
-        filter: [{ "year": { "$eq": 2024 } }],
-        include_vectors: false
-      }, null, 2),
+      defaultPayload: JSON.stringify(
+        {
+          fields: { embedding: { query: [0.1, 0.2, 0.3, 0.4], limit: 5 } },
+          filter: [{ category: { $eq: 'tech' } }],
+        },
+        null,
+        2
+      ),
       run: async (payload, idx) => {
-        if (!idx) return { success: false, result: 'Select an index' }
+        if (!idx) return { success: false, result: 'Select a collection' }
         if (!payload) return { success: false, result: 'Payload required' }
         try {
-          const parsed = JSON.parse(payload)
-          // Convert filter to JSON string if it's an object/array
-          const request = {
-            ...parsed,
-            filter: parsed.filter ? JSON.stringify(parsed.filter) : undefined
-          }
-          const response = await api.searchVectors(idx, request)
-          console.log(response)
-          if (response.success && response.data) {
-            return { success: true, result: formatVectorResult(response.data) }
-          }
-          return {
-            success: response.success,
-            result: response.error || 'No results'
-          }
+          return apiResult(await api.search(idx, JSON.parse(payload)))
         } catch (e) {
           return { success: false, result: `Invalid JSON: ${e}` }
         }
-      }
+      },
     },
     {
-      id: 'list-indexes',
-      title: 'List Indexes',
-      description: 'Retrieve a list of all vector indexes in the database.',
-      endpoint: 'GET /api/v1/index/list',
+      id: 'list-collections',
+      title: 'List Collections',
+      description: 'Retrieve all collections in the selected database, with their field definitions.',
+      endpoint: 'GET /api/v2/collections',
       method: 'GET',
       run: async () => {
-        const response = await api.listIndexes()
-        if (response.success && response.data) {
-          // setIndexes(response.data.indexes || [])
-          if (response.data.indexes?.length > 0 && !selectedIndex) {
-            setSelectedIndex(response.data.indexes[0].name)
-          }
+        const response = await api.listCollections()
+        if (response.success && response.data && response.data.length > 0) {
+          setSelectedCollection((cur) => cur || response.data![0].name)
         }
-        return {
-          success: response.success,
-          result: response.success ? formatResult(response.data) : response.error || 'Failed'
-        }
-      }
+        return apiResult(response)
+      },
     },
     {
-      id: 'get-index-info',
-      title: 'Get Index Info',
-      description: 'Retrieve detailed information about a specific index.',
-      endpoint: 'GET /api/v1/index/:indexName/info',
+      id: 'describe-collection',
+      title: 'Describe Collection',
+      description: 'Retrieve metadata for one collection: its fields, object count, layout version, and creation time.',
+      endpoint: 'GET /api/v2/collections/:collectionName',
       method: 'GET',
-      requiresIndex: true,
+      requiresCollection: true,
       run: async (_payload, idx) => {
-        if (!idx) return { success: false, result: 'Select an index' }
-        const response = await api.getIndexInfo(idx)
-        return {
-          success: response.success,
-          result: response.success ? formatResult(response.data) : response.error || 'Failed'
-        }
-      }
+        if (!idx) return { success: false, result: 'Select a collection' }
+        return apiResult(await api.getCollection(idx))
+      },
     },
     {
-      id: 'get-vector-by-id',
-      title: 'Get Vector by ID',
-      description: 'Retrieve a specific vector by its unique identifier. For hybrid indexes, the response also includes sparse vector data (sparseIndices and sparseValues) when available.',
-      endpoint: 'POST /api/v1/index/:indexName/vector/get',
+      id: 'get-objects',
+      title: 'Get Objects by ID',
+      description:
+        'Fetch full stored objects (meta, filter, and the stored vectors/sparses/multi-vectors) by id.',
+      endpoint: 'POST /api/v2/collections/:collectionName/objects/query',
       method: 'POST',
-      requiresIndex: true,
+      requiresCollection: true,
       requiresPayload: true,
-      defaultPayload: JSON.stringify({ id: "vec_001" }, null, 2),
+      defaultPayload: JSON.stringify({ ids: ['obj_001', 'obj_002'] }, null, 2),
       run: async (payload, idx) => {
-        if (!idx) return { success: false, result: 'Select an index' }
+        if (!idx) return { success: false, result: 'Select a collection' }
         if (!payload) return { success: false, result: 'Payload required' }
         try {
-          const request = JSON.parse(payload)
-          const response = await api.getVector(idx, request)
-          return {
-            success: response.success,
-            result: response.success ? formatResult(response.data) : response.error || 'Failed'
-          }
+          const { ids } = JSON.parse(payload)
+          return apiResult(await api.getObjects(idx, ids))
         } catch (e) {
           return { success: false, result: `Invalid JSON: ${e}` }
         }
-      }
+      },
     },
     {
-      id: 'health',
-      title: 'Health Check',
-      description: 'Check if the Endee API server is running and healthy.',
-      endpoint: 'GET /api/v1/health',
+      id: 'update-filters',
+      title: 'Update Object Filters',
+      description: 'Update the filter tags for one or more objects by id (no re-upsert of vectors).',
+      endpoint: 'POST /api/v2/collections/:collectionName/filters',
+      method: 'POST',
+      requiresCollection: true,
+      requiresPayload: true,
+      defaultPayload: JSON.stringify(
+        [
+          { id: 'obj_001', filter: { category: 'ml', year: 2025 } },
+          { id: 'obj_002', filter: { category: 'science', year: 2023 } },
+        ],
+        null,
+        2
+      ),
+      run: async (payload, idx) => {
+        if (!idx) return { success: false, result: 'Select a collection' }
+        if (!payload) return { success: false, result: 'Payload required' }
+        try {
+          return apiResult(await api.updateFilters(idx, JSON.parse(payload)))
+        } catch (e) {
+          return { success: false, result: `Invalid JSON: ${e}` }
+        }
+      },
+    },
+    {
+      id: 'delete-object',
+      title: 'Delete Object by ID',
+      description: 'Remove a single object from the collection by its id.',
+      endpoint: 'DELETE /api/v2/collections/:collectionName/objects/:id',
+      method: 'DELETE',
+      requiresCollection: true,
+      requiresPayload: true,
+      defaultPayload: JSON.stringify({ id: 'obj_003' }, null, 2),
+      run: async (payload, idx) => {
+        if (!idx) return { success: false, result: 'Select a collection' }
+        if (!payload) return { success: false, result: 'Payload required' }
+        try {
+          const { id } = JSON.parse(payload)
+          return apiResult(await api.deleteObject(idx, id))
+        } catch (e) {
+          return { success: false, result: `Invalid JSON: ${e}` }
+        }
+      },
+    },
+    {
+      id: 'delete-by-filter',
+      title: 'Delete by Filter',
+      description: 'Delete every object that matches a filter. Returns the number of objects deleted.',
+      endpoint: 'DELETE /api/v2/collections/:collectionName/objects',
+      method: 'DELETE',
+      requiresCollection: true,
+      requiresPayload: true,
+      defaultPayload: JSON.stringify({ filter: [{ category: { $eq: 'science' } }] }, null, 2),
+      run: async (payload, idx) => {
+        if (!idx) return { success: false, result: 'Select a collection' }
+        if (!payload) return { success: false, result: 'Payload required' }
+        try {
+          const { filter } = JSON.parse(payload)
+          return apiResult(await api.deleteByFilter(idx, filter))
+        } catch (e) {
+          return { success: false, result: `Invalid JSON: ${e}` }
+        }
+      },
+    },
+    {
+      id: 'rebuild',
+      title: 'Rebuild Fields',
+      description:
+        'Rebuild one or more dense fields’ HNSW graphs (async). Only M / efCon may change. Poll progress with rebuild status.',
+      endpoint: 'POST /api/v2/collections/:collectionName/rebuild',
+      method: 'POST',
+      requiresCollection: true,
+      requiresPayload: true,
+      defaultPayload: JSON.stringify({ fields: [{ field: 'embedding', m: 16, efCon: 128 }] }, null, 2),
+      run: async (payload, idx) => {
+        if (!idx) return { success: false, result: 'Select a collection' }
+        if (!payload) return { success: false, result: 'Payload required' }
+        try {
+          const { fields } = JSON.parse(payload) as { fields: RebuildFieldSpec[] }
+          return apiResult(await api.rebuild(idx, fields))
+        } catch (e) {
+          return { success: false, result: `Invalid JSON: ${e}` }
+        }
+      },
+    },
+    {
+      id: 'rebuild-status',
+      title: 'Rebuild Status',
+      description: 'Poll the progress of an in-flight rebuild.',
+      endpoint: 'GET /api/v2/collections/:collectionName/rebuild/status',
       method: 'GET',
-      run: async () => {
-        const response = await fetch(`/api/collections?${dbq}`);
-        if (!response.ok) {
-          throw new Error('Failed to reach the server')
-        }
-        await response.json()
-        return {
-          success: true,
-          result: formatResult({ status: 'ok' })
-        }
-      }
+      requiresCollection: true,
+      run: async (_payload, idx) => {
+        if (!idx) return { success: false, result: 'Select a collection' }
+        return apiResult(await api.rebuildStatus(idx))
+      },
+    },
+    {
+      id: 'shrink',
+      title: 'Shrink (Defragment)',
+      description: 'Defragment the collection’s storage in place to reclaim space.',
+      endpoint: 'POST /api/v2/collections/:collectionName/shrink',
+      method: 'POST',
+      requiresCollection: true,
+      run: async (_payload, idx) => {
+        if (!idx) return { success: false, result: 'Select a collection' }
+        return apiResult(await api.shrink(idx))
+      },
     },
     {
       id: 'create-backup',
       title: 'Create Backup',
-      description: 'Asynchronously create a backup of an index. The backup runs in the background — check /api/v1/backups/active to monitor progress.',
-      endpoint: 'POST /api/v1/index/:indexName/backup',
+      description:
+        'Asynchronously back up a collection. The backup runs in the background — check the active-backup step to monitor progress.',
+      endpoint: 'POST /api/v2/collections/:collectionName/backups',
       method: 'POST',
-      requiresIndex: true,
+      requiresCollection: true,
       requiresPayload: true,
-      defaultPayload: JSON.stringify({ name: "my_backup" }, null, 2),
+      defaultPayload: JSON.stringify({ name: 'tutorial_backup' }, null, 2),
       run: async (payload, idx) => {
-        if (!idx) return { success: false, result: 'Select an index' }
+        if (!idx) return { success: false, result: 'Select a collection' }
         if (!payload) return { success: false, result: 'Payload required' }
         try {
           const { name } = JSON.parse(payload)
-          const response = await fetch(`/api/collections/${encodeURIComponent(idx)}/backup?${dbq}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-          })
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}))
-            throw new Error(errorData.error || 'Failed to create backup')
-          }
-          return { success: true, result: 'Backup created successfully' }
+          return apiResult(await api.createBackup(idx, name))
         } catch (e) {
           return { success: false, result: `${e}` }
         }
-      }
+      },
     },
     {
       id: 'list-backups',
       title: 'List Backups',
-      description: 'Retrieve a list of all backups.',
-      endpoint: 'GET /api/v1/backups',
+      description: 'Retrieve all backups for the selected database.',
+      endpoint: 'GET /api/v2/backups',
       method: 'GET',
-      run: async () => {
-        try {
-          const response = await fetch(`/api/backups?${dbq}`, {
-            method: "GET"
-          })
-          if (!response.ok) {
-            throw new Error('Failed to fetch backups')
-          }
-          const data = await response.json()
-          return { success: true, result: formatResult(data) }
-        } catch (e) {
-          return { success: false, result: `${e}` }
-        }
-      }
+      run: async () => apiResult(await api.listBackups()),
     },
     {
-      id: 'restore-backup',
-      title: 'Restore Backup',
-      description: 'Restore a backup to a new index. Provide the backup name and target index name.',
-      endpoint: 'POST /api/v1/backups/:backupName/restore',
-      method: 'POST',
-      requiresPayload: true,
-      defaultPayload: JSON.stringify({
-        backup_name: "my_backup",
-        target_index_name: "restored_index"
-      }, null, 2),
-      run: async (payload) => {
-        if (!payload) return { success: false, result: 'Payload required' }
-        try {
-          const { backup_name, target_index_name } = JSON.parse(payload)
-          const response = await fetch(`/api/backups/${encodeURIComponent(backup_name)}/restore?${dbq}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target_index_name })
-          })
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}))
-            throw new Error(errorData.error || 'Failed to restore backup')
-          }
-          return { success: true, result: `Backup restored to index "${target_index_name}"` }
-        } catch (e) {
-          return { success: false, result: `${e}` }
-        }
-      }
+      id: 'check-active-backup',
+      title: 'Check Active Backup',
+      description: 'Check whether a backup is currently being created for this database.',
+      endpoint: 'GET /api/v2/backups/active',
+      method: 'GET',
+      run: async () => apiResult(await api.activeBackup()),
     },
     {
-      id: 'delete-backup',
-      title: 'Delete Backup',
-      description: 'Permanently delete a backup.',
-      endpoint: 'DELETE /api/v1/backups/:backupName',
-      method: 'DELETE',
+      id: 'backup-info',
+      title: 'Get Backup Info',
+      description: 'Retrieve metadata about a backup (source collection, params, size, timestamp).',
+      endpoint: 'GET /api/v2/backups/:backupName/info',
+      method: 'GET',
       requiresPayload: true,
-      defaultPayload: JSON.stringify({ backup_name: "my_backup" }, null, 2),
+      defaultPayload: JSON.stringify({ backup_name: 'tutorial_backup' }, null, 2),
       run: async (payload) => {
         if (!payload) return { success: false, result: 'Payload required' }
         try {
           const { backup_name } = JSON.parse(payload)
-          const response = await fetch(`/api/backups/${encodeURIComponent(backup_name)}?${dbq}`, {
-            method: 'DELETE'
-          })
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}))
-            throw new Error(errorData.error || 'Failed to delete backup')
-          }
-          return { success: true, result: `Backup "${backup_name}" deleted successfully` }
+          return apiResult(await api.backupInfo(backup_name))
         } catch (e) {
           return { success: false, result: `${e}` }
         }
-      }
+      },
+    },
+    {
+      id: 'restore-backup',
+      title: 'Restore Backup',
+      description: 'Restore a backup into a new collection. Provide the backup name and the target collection name.',
+      endpoint: 'POST /api/v2/backups/:backupName/restore',
+      method: 'POST',
+      requiresPayload: true,
+      defaultPayload: JSON.stringify(
+        { backup_name: 'tutorial_backup', target_collection_name: 'restored_collection' },
+        null,
+        2
+      ),
+      run: async (payload) => {
+        if (!payload) return { success: false, result: 'Payload required' }
+        try {
+          const { backup_name, target_collection_name } = JSON.parse(payload)
+          const response = await api.restoreBackup(backup_name, target_collection_name)
+          return response.success
+            ? { success: true, result: `Backup restored to collection "${target_collection_name}"` }
+            : { success: false, result: response.error || 'Failed to restore backup' }
+        } catch (e) {
+          return { success: false, result: `${e}` }
+        }
+      },
     },
     {
       id: 'download-backup',
       title: 'Download Backup',
       description: 'Download a backup as a .tar file.',
-      endpoint: 'GET /api/v1/backups/:backupName/download',
+      endpoint: 'GET /api/v2/backups/:backupName/download',
       method: 'GET',
       requiresPayload: true,
-      defaultPayload: JSON.stringify({ backup_name: "my_backup" }, null, 2),
+      defaultPayload: JSON.stringify({ backup_name: 'tutorial_backup' }, null, 2),
       run: async (payload) => {
         if (!payload) return { success: false, result: 'Payload required' }
         try {
           const { backup_name } = JSON.parse(payload)
-          const resolve = await fetch(`/api/backups/${encodeURIComponent(backup_name)}/download?${dbq}`)
-          const info = await resolve.json().catch(() => ({}))
-          if (!resolve.ok || !info.url) {
-            throw new Error(info.error || 'Failed to start download')
+          const resolve = await api.downloadBackupUrl(backup_name)
+          if (!resolve.success || !resolve.data?.url) {
+            throw new Error(resolve.error || 'Failed to start download')
           }
           const iframe = document.createElement('iframe')
           iframe.style.display = 'none'
-          iframe.src = info.url
+          iframe.src = resolve.data.url
           document.body.appendChild(iframe)
           setTimeout(() => { document.body.removeChild(iframe) }, 60000)
           return { success: true, result: `Download started for "${backup_name}"` }
         } catch (e) {
           return { success: false, result: `${e}` }
         }
-      }
+      },
     },
     {
       id: 'upload-backup',
       title: 'Upload Backup',
-      description: 'Upload a backup .tar file. This is a file upload endpoint — use the Run button to select a file. If a backup with the same name already exists, the upload will fail.',
-      endpoint: 'POST /api/v1/backups/upload',
+      description:
+        'Upload a backup .tar file. This is a file-upload endpoint — use Run to select a file. Fails if a backup with the same name already exists.',
+      endpoint: 'POST /api/v2/backups/upload',
       method: 'POST',
       run: async () => {
         try {
@@ -469,10 +519,7 @@ export default function TutorialsPage() {
           })
           const formData = new FormData()
           formData.append('backup', file)
-          const response = await fetch(`/api/backups/upload?${dbq}`, {
-            method: 'POST',
-            body: formData
-          })
+          const response = await fetch(`/api/backups/upload?${dbq}`, { method: 'POST', body: formData })
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
             throw new Error(errorData.error || 'Failed to upload backup')
@@ -481,159 +528,68 @@ export default function TutorialsPage() {
         } catch (e) {
           return { success: false, result: `${e}` }
         }
-      }
+      },
     },
     {
-      id: 'check-active-backup',
-      title: 'Check Active Backup',
-      description: 'Check if a backup is currently being created. Returns active status, backup name, and index ID when a backup is in progress.',
-      endpoint: 'GET /api/v1/backups/active',
-      method: 'GET',
-      run: async () => {
-        try {
-          const response = await fetch(`/api/backups/active?${dbq}`, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-          })
-          if (!response.ok) {
-            throw new Error('Failed to check active backup')
-          }
-          const data = await response.json()
-          return { success: true, result: formatResult(data) }
-        } catch (e) {
-          return { success: false, result: `${e}` }
-        }
-      }
-    },
-    {
-      id: 'backup-info',
-      title: 'Get Backup Info',
-      description: 'Retrieve metadata about a backup including original index name, parameters, size, and creation timestamp.',
-      endpoint: 'GET /api/v1/backups/:backupName/info',
-      method: 'GET',
+      id: 'delete-backup',
+      title: 'Delete Backup',
+      description: 'Permanently delete a backup.',
+      endpoint: 'DELETE /api/v2/backups/:backupName',
+      method: 'DELETE',
       requiresPayload: true,
-      defaultPayload: JSON.stringify({ backup_name: "my_backup" }, null, 2),
+      defaultPayload: JSON.stringify({ backup_name: 'tutorial_backup' }, null, 2),
       run: async (payload) => {
         if (!payload) return { success: false, result: 'Payload required' }
         try {
           const { backup_name } = JSON.parse(payload)
-          const response = await fetch(`/api/backups/${encodeURIComponent(backup_name)}/info?${dbq}`, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-          })
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}))
-            throw new Error(errorData.error || 'Failed to fetch backup info')
-          }
-          const data = await response.json()
-          return { success: true, result: formatResult(data) }
+          const response = await api.deleteBackup(backup_name)
+          return response.success
+            ? { success: true, result: `Backup "${backup_name}" deleted successfully` }
+            : { success: false, result: response.error || 'Failed to delete backup' }
         } catch (e) {
           return { success: false, result: `${e}` }
         }
-      }
+      },
     },
     {
-      id: 'update-filters',
-      title: 'Update Vector Filters',
-      description: 'Update the filter metadata for one or more vectors by their IDs.',
-      endpoint: 'POST /api/v1/index/:indexName/filters/update',
-      method: 'POST',
-      requiresIndex: true,
-      requiresPayload: true,
-      defaultPayload: JSON.stringify([
-        { id: "vec_001", filter: { category: "ml", score: 95 } },
-        { id: "vec_002", filter: { category: "science", score: 80 } }
-      ], null, 2),
-      run: async (payload, idx) => {
-        if (!idx) return { success: false, result: 'Select an index' }
-        if (!payload) return { success: false, result: 'Payload required' }
-        try {
-          const updates = JSON.parse(payload)
-          const response = await api.updateFilters(idx, updates)
-          return {
-            success: response.success,
-            result: response.success ? formatResult(response.data) : response.error || 'Failed'
-          }
-        } catch (e) {
-          return { success: false, result: `Invalid JSON: ${e}` }
-        }
-      }
-    },
-    {
-      id: 'delete-vector',
-      title: 'Delete Vector by ID',
-      description: 'Remove a specific vector from an index by its ID.',
-      endpoint: 'DELETE /api/v1/index/:indexName/vector/:vectorId/delete',
+      id: 'delete-collection',
+      title: 'Delete Collection',
+      description: 'Permanently delete a collection and all of its objects.',
+      endpoint: 'DELETE /api/v2/collections/:collectionName',
       method: 'DELETE',
-      requiresIndex: true,
-      requiresPayload: true,
-      defaultPayload: JSON.stringify({ id: "vec_003" }, null, 2),
-      run: async (payload, idx) => {
-        if (!idx) return { success: false, result: 'Select an index' }
-        if (!payload) return { success: false, result: 'Payload required' }
-        try {
-          const { id } = JSON.parse(payload)
-          const response = await api.deleteVectorById(idx, id)
-          return {
-            success: response.success,
-            result: response.success ? formatResult(response.data) : response.error || 'Failed'
-          }
-        } catch (e) {
-          return { success: false, result: `Invalid JSON: ${e}` }
-        }
-      }
-    },
-    {
-      id: 'delete-index',
-      title: 'Delete Index',
-      description: 'Permanently delete an index and all its vectors.',
-      endpoint: 'DELETE /api/v1/index/:indexName/delete',
-      method: 'DELETE',
-      requiresIndex: true,
+      requiresCollection: true,
       run: async (_payload, idx) => {
-        if (!idx) return { success: false, result: 'Select an index' }
-        const response = await api.deleteIndex(idx)
-        return {
-          success: response.success,
-          result: response.success ? formatResult(response.data) : response.error || 'Failed'
-        }
-      }
-    }
+        if (!idx) return { success: false, result: 'Select a collection' }
+        return apiResult(await api.deleteCollection(idx))
+      },
+    },
   ]
 
   const toggleStep = (stepId: string) => {
     const newExpanded = new Set(expandedSteps)
-    if (newExpanded.has(stepId)) {
-      newExpanded.delete(stepId)
-    } else {
-      newExpanded.add(stepId)
-    }
+    if (newExpanded.has(stepId)) newExpanded.delete(stepId)
+    else newExpanded.add(stepId)
     setExpandedSteps(newExpanded)
   }
 
   const runStep = async (step: TutorialStep) => {
-    setRunningSteps(prev => new Set(prev).add(step.id))
-    const payload = stepPayloads[step.id] || step.defaultPayload
-    const result = await step.run(payload, selectedIndex)
-    setStepResults(prev => ({
-      ...prev,
-      [step.id]: { ...result, timestamp: Date.now() }
-    }))
-    setRunningSteps(prev => {
+    setRunningSteps((prev) => new Set(prev).add(step.id))
+    const payload = stepPayloads[step.id] ?? step.defaultPayload
+    const result = await step.run(payload, selectedCollection)
+    setStepResults((prev) => ({ ...prev, [step.id]: { ...result, timestamp: Date.now() } }))
+    setRunningSteps((prev) => {
       const next = new Set(prev)
       next.delete(step.id)
       return next
     })
   }
 
-  const getPayload = (step: TutorialStep) => {
-    return stepPayloads[step.id] ?? step.defaultPayload ?? ''
-  }
+  const getPayload = (step: TutorialStep) => stepPayloads[step.id] ?? step.defaultPayload ?? ''
 
   const setPayload = (stepId: string, value: string) => {
-    setStepPayloads(prev => ({ ...prev, [stepId]: value }))
+    setStepPayloads((prev) => ({ ...prev, [stepId]: value }))
     if (backupPayloadSteps.has(stepId)) {
-      setStepErrors(prev => ({ ...prev, [stepId]: validateBackupPayload(stepId, value) }))
+      setStepErrors((prev) => ({ ...prev, [stepId]: validateBackupPayload(stepId, value) }))
     }
   }
 
@@ -649,19 +605,36 @@ export default function TutorialsPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100 mb-2">
           Interactive Tutorials
         </h1>
         <p className="text-slate-600 dark:text-slate-300">
-          Learn how to use the Endee Vector Database API with these interactive examples.
-          Run each step to see the API in action.
+          Learn the Endee v2 Collections API with these runnable examples. Run each step against the
+          selected database to see the API in action.
+        </p>
+      </div>
+
+      {/* Target collection */}
+      <div className="mb-6 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-4">
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase mb-1">
+          Target collection
+        </label>
+        <input
+          type="text"
+          value={selectedCollection}
+          onChange={(e) => setSelectedCollection(e.target.value)}
+          placeholder="e.g., tutorial_collection"
+          className="w-full md:w-80 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+        />
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          The collection that collection-scoped steps target. Created/listed steps update this automatically.
         </p>
       </div>
 
       {/* Tutorial Steps */}
       <div className="space-y-4">
-        {tutorialSteps.map(step => {
+        {tutorialSteps.map((step) => {
           const isExpanded = expandedSteps.has(step.id)
           const isRunning = runningSteps.has(step.id)
           const result = stepResults[step.id]
@@ -706,7 +679,7 @@ export default function TutorialsPage() {
                       Endpoint
                     </div>
                     <code className="text-sm font-mono text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
-                      {step.endpoint.replace(':indexName', selectedIndex || ':indexName')}
+                      {step.endpoint.replace(':collectionName', selectedCollection || ':collectionName')}
                     </code>
                   </div>
 
@@ -719,7 +692,7 @@ export default function TutorialsPage() {
                       <textarea
                         value={getPayload(step)}
                         onChange={(e) => setPayload(step.id, e.target.value)}
-                        rows={Math.min(10, (getPayload(step).match(/\n/g) || []).length + 2)}
+                        rows={Math.min(14, (getPayload(step).match(/\n/g) || []).length + 2)}
                         className={`w-full px-3 py-2 border rounded-md bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${stepErrors[step.id] ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
                       />
                       {stepErrors[step.id] && (
@@ -728,10 +701,10 @@ export default function TutorialsPage() {
                     </div>
                   )}
 
-                  {/* Index Required Warning */}
-                  {step.requiresIndex && !selectedIndex && (
+                  {/* Collection Required Warning */}
+                  {step.requiresCollection && !selectedCollection && (
                     <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded">
-                      Please select or create an index first.
+                      Please set a target collection above (or create one first).
                     </div>
                   )}
 
@@ -739,17 +712,13 @@ export default function TutorialsPage() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => runStep(step)}
-                      disabled={isRunning || (step.requiresIndex && !selectedIndex) || !!stepErrors[step.id]}
+                      disabled={isRunning || (step.requiresCollection && !selectedCollection) || !!stepErrors[step.id]}
                       className={`flex items-center gap-2 px-4 py-2 rounded-md text-white transition-colors ${step.method === 'DELETE'
                         ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-400'
                         : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400'
                         } disabled:cursor-not-allowed`}
                     >
-                      {step.method === 'DELETE' ? (
-                        <GoTrash className="w-4 h-4" />
-                      ) : (
-                        <GoPlay className="w-4 h-4" />
-                      )}
+                      {step.method === 'DELETE' ? <GoTrash className="w-4 h-4" /> : <GoPlay className="w-4 h-4" />}
                       {isRunning ? 'Running...' : 'Run'}
                     </button>
                   </div>
@@ -785,18 +754,20 @@ export default function TutorialsPage() {
             <h3 className="font-medium text-slate-700 dark:text-slate-200 mb-2">Comparison</h3>
             <ul className="space-y-1 text-slate-600 dark:text-slate-300 font-mono text-xs">
               <li><code>$eq</code> - Equal to</li>
+              <li><code>$gt</code> / <code>$gte</code> - Greater than / or equal</li>
+              <li><code>$lt</code> / <code>$lte</code> - Less than / or equal</li>
             </ul>
           </div>
           <div>
-            <h3 className="font-medium text-slate-700 dark:text-slate-200 mb-2">Array & Logical</h3>
+            <h3 className="font-medium text-slate-700 dark:text-slate-200 mb-2">Array & Range</h3>
             <ul className="space-y-1 text-slate-600 dark:text-slate-300 font-mono text-xs">
               <li><code>$in</code> - Value in array</li>
-              <li><code>$range</code> - Numerical values in range</li>
+              <li><code>$range</code> - Inclusive numeric range <code>[min, max]</code></li>
             </ul>
           </div>
         </div>
         <div className="mt-4 p-3 bg-slate-100 dark:bg-slate-800 rounded font-mono text-xs text-slate-700 dark:text-slate-300">
-          Example: <code>{`[{"year": {"$eq": 2024}}, {"type": {"$in": ["article", "paper"]}}]`}</code>
+          Example: <code>{`[{"category": {"$eq": "tech"}}, {"year": {"$range": [2020, 2024]}}]`}</code>
         </div>
       </div>
     </div>

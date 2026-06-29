@@ -1,5 +1,6 @@
-import { backupFetch, requireDatabase } from "@/lib/endeeServer"
-import { errorResponse, passthroughJson } from "@/lib/apiRoute"
+import { NextResponse } from "next/server"
+import { getImpersonatedClient, requireDatabase } from "@/lib/endeeServer"
+import { errorResponse } from "@/lib/apiRoute"
 
 export const dynamic = "force-dynamic"
 
@@ -11,12 +12,8 @@ export async function DELETE(
   try {
     const db = requireDatabase(request)
     const { backupName } = await params
-    const upstream = await backupFetch(
-      db,
-      `/backups/${encodeURIComponent(backupName)}`,
-      { method: "DELETE" }
-    )
-    return passthroughJson(upstream)
+    const result = await getImpersonatedClient(db).deleteBackup(backupName)
+    return NextResponse.json(result)
   } catch (error) {
     return errorResponse(error)
   }

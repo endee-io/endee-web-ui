@@ -25,7 +25,7 @@ const GeneralNav: NavItem[] = [
 
 // Section 2: scoped to the selected database.
 const DatabaseNav: NavItem[] = [
-  { name: "Collections", href: "/indexes", icon: <GoDatabase className='h-5 w-6' /> },
+  { name: "Collections", href: "/collections", icon: <GoDatabase className='h-5 w-6' /> },
   { name: "Backups", href: "/backups", icon: <GoArchive className='h-5 w-6' /> },
   { name: "Tutorials", href: "/tutorials", icon: <GoBook className='h-5 w-6' /> },
 ]
@@ -123,7 +123,7 @@ function DatabaseSelector() {
   return (
     <Select
       value={selectedDatabase ?? ''}
-      options={databases.map((db) => ({ value: db.username, label: db.username }))}
+      options={databases.map((db) => ({ value: db.db_name, label: db.db_name }))}
       onChange={selectDatabase}
       disabled={loading || databases.length === 0}
       placeholder={placeholder}

@@ -1,138 +1,106 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { GoArrowLeft, GoSearch, GoTrash, GoPencil } from 'react-icons/go'
 import { api } from '../api/client'
-import type { IndexDescription } from '../api/client'
-import type { VectorInfo } from 'endee'
+import type { FullObject } from '../api/client'
 import Notification from '../components/Notification'
 import { BarLoader } from 'react-spinners'
 
+/** Render a numeric vector, truncated. */
+function vectorPreview(vec: number[], max = 10): string {
+  const head = vec.slice(0, max).map((v) => v.toFixed(4)).join(', ')
+  return `[${head}${vec.length > max ? `, … (${vec.length})` : ''}]`
+}
+
 export default function VectorGetPage() {
-  const params = useParams(); const indexName = params?.indexName as string
+  const params = useParams()
+  const collectionName = params?.collectionName as string
   const router = useRouter()
-  const [indexInfo, setIndexInfo] = useState<IndexDescription | null>(null)
-  const [vectorId, setVectorId] = useState('')
+
+  const [idsInput, setIdsInput] = useState('')
   const [searching, setSearching] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [result, setResult] = useState<VectorInfo | null>(null)
+  const [objects, setObjects] = useState<FullObject[] | null>(null)
 
   // Update filter modal state
-  const [showUpdateFilterModal, setShowUpdateFilterModal] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [filterInput, setFilterInput] = useState('')
   const [updatingFilter, setUpdatingFilter] = useState(false)
   const [updateFilterError, setUpdateFilterError] = useState<string | null>(null)
 
-  const isHybrid = indexInfo?.isHybrid;
-
-  useEffect(() => {
-    if (indexName) {
-      loadIndexInfo()
-    }
-  }, [indexName])
-
-  const loadIndexInfo = async () => {
-    if (!indexName) return
-    try {
-      const response = await api.getIndexInfo(indexName)
-      if (response.success && response.data) {
-        setIndexInfo(response.data)
-      }
-    } catch (err) {
-      console.error('Failed to load index info:', err)
-    }
-  }
+  const parseIds = (raw: string): string[] =>
+    raw.split(',').map((s) => s.trim()).filter(Boolean)
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setSuccess(null)
-    setResult(null)
+    setObjects(null)
+    if (!collectionName) return
 
-    if (!indexName) return
-
-    if (!vectorId.trim()) {
-      setError('Vector ID is required')
+    const ids = parseIds(idsInput)
+    if (ids.length === 0) {
+      setError('Enter at least one object ID')
       return
     }
 
     setSearching(true)
     try {
-      const response = await api.getVector(indexName, { id: vectorId.trim() })
-
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to get vector')
+      const response = await api.getObjects(collectionName, ids)
+      if (!response.success) throw new Error(response.error || 'Failed to fetch objects')
+      setObjects(response.data || [])
+      if ((response.data || []).length === 0) {
+        setError('No objects found for the given ID(s)')
       }
-
-      setResult(response.data!)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to get vector')
+      setError(err instanceof Error ? err.message : 'Failed to fetch objects')
     } finally {
       setSearching(false)
     }
   }
 
-  const handleDeleteById = async () => {
-    if (!indexName || !result) return
-
-    setDeleting(true)
+  const handleDelete = async (id: string) => {
+    if (!collectionName) return
+    setDeletingId(id)
     setError(null)
     try {
-      const response = await api.deleteVectorById(indexName, result.id)
-
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to delete vector')
-      }
-
-      setSuccess(`Vector "${result.id}" deleted successfully`)
-      setResult(null)
-      setVectorId('')
+      const response = await api.deleteObject(collectionName, id)
+      if (!response.success) throw new Error(response.error || 'Failed to delete object')
+      setObjects((prev) => (prev ? prev.filter((o) => o.id !== id) : prev))
+      setSuccess(`Object "${id}" deleted successfully`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete vector')
+      setError(err instanceof Error ? err.message : 'Failed to delete object')
     } finally {
-      setDeleting(false)
+      setDeletingId(null)
     }
   }
 
-  const openUpdateFilterModal = () => {
-    setFilterInput(result?.filter ? JSON.stringify(result.filter, null, 2) : '{}')
+  const openUpdateFilterModal = (obj: FullObject) => {
+    setEditingId(obj.id)
+    setFilterInput(obj.filter && Object.keys(obj.filter).length ? JSON.stringify(obj.filter, null, 2) : '{}')
     setUpdateFilterError(null)
-    setShowUpdateFilterModal(true)
   }
 
   const handleUpdateFilter = async () => {
-    if (!indexName || !result) return
-
+    if (!collectionName || !editingId) return
     setUpdatingFilter(true)
     setUpdateFilterError(null)
-
     try {
       const parsedFilter = JSON.parse(filterInput)
-      const response = await api.updateFilters(indexName, [
-        { id: result.id, filter: parsedFilter }
-      ])
+      const response = await api.updateFilters(collectionName, [{ id: editingId, filter: parsedFilter }])
+      if (!response.success) throw new Error(response.error || 'Failed to update filter')
 
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to update filter')
-      }
-
-      // Refresh the vector data
-      const refreshResponse = await api.getVector(indexName, { id: result.id })
-      if (refreshResponse.success && refreshResponse.data) {
-        setResult(refreshResponse.data)
-      }
-
-      setShowUpdateFilterModal(false)
-      setSuccess(`Filter updated for vector "${result.id}"`)
+      // Reflect the change locally.
+      setObjects((prev) => prev ? prev.map((o) => (o.id === editingId ? { ...o, filter: parsedFilter } : o)) : prev)
+      setSuccess(`Filter updated for object "${editingId}"`)
+      setEditingId(null)
     } catch (err) {
-      if (err instanceof SyntaxError) {
-        setUpdateFilterError('Invalid JSON format')
-      } else {
-        setUpdateFilterError(err instanceof Error ? err.message : 'Failed to update filter')
-      }
+      if (err instanceof SyntaxError) setUpdateFilterError('Invalid JSON format')
+      else setUpdateFilterError(err instanceof Error ? err.message : 'Failed to update filter')
     } finally {
       setUpdatingFilter(false)
     }
@@ -143,51 +111,38 @@ export default function VectorGetPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => router.push(`/indexes/${indexName}`)}
+          onClick={() => router.push(`/collections/${collectionName}`)}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />
-          Back to {indexName}
+          Back to {collectionName}
         </button>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Get & Delete Vectors</h1>
-          {isHybrid && (
-            <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full">
-              Hybrid Index
-            </span>
-          )}
-        </div>
+        <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Get &amp; Delete Objects</h1>
         <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-          Retrieve and manage vectors in "{indexName}"
+          Retrieve, update filters on, or delete objects in &quot;{collectionName}&quot; by ID.
         </p>
       </div>
 
-      {/* Success Message */}
-      {success && (
-        <Notification type="success" message={success} onDismiss={() => setSuccess(null)} className="mb-6" />
-      )}
+      {success && <Notification type="success" message={success} onDismiss={() => setSuccess(null)} className="mb-6" />}
+      {error && <Notification type="error" message={error} onDismiss={() => setError(null)} className="mb-6" />}
 
-      {/* Error Message */}
-      {error && (
-        <Notification type="error" message={error} onDismiss={() => setError(null)} className="mb-6" />
-      )}
-
-      {/* Get Vector Form */}
+      {/* Get form */}
       <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-6 mb-6">
-        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Get Vector by ID</h3>
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Get Objects by ID</h3>
         <form onSubmit={handleSearch} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-              Vector ID <span className="text-red-500">*</span>
+              Object ID(s) <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
-              value={vectorId}
-              onChange={(e) => setVectorId(e.target.value)}
-              placeholder="e.g., vec_001"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={idsInput}
+              onChange={(e) => setIdsInput(e.target.value)}
+              placeholder="e.g., obj_001, obj_002"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={searching}
             />
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Comma-separate to fetch multiple objects.</p>
           </div>
 
           <button
@@ -196,121 +151,125 @@ export default function VectorGetPage() {
             className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
           >
             <GoSearch className="w-4 h-4" />
-            {searching ? 'Searching...' : 'Get Vector'}
+            {searching ? 'Fetching...' : 'Get Objects'}
           </button>
         </form>
       </div>
 
-      {/* Result */}
-      {result && (
-        <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-4 mb-6">
-          {/* Header Row */}
-          <div className="flex items-center justify-between mb-3 border-b pb-2 border-slate-200">
-            <div className='flex gap-4'>
-              <span className="font-medium text-slate-500 dark:text-slate-400 uppercase shrink-0">ID</span>
-              <span className="font-medium text-slate-800 dark:text-slate-100">{result.id}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={openUpdateFilterModal}
-                disabled={deleting || updatingFilter}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
+      {/* Results */}
+      {objects && objects.length > 0 && (
+        <div className="space-y-4">
+          {objects.map((obj) => {
+            const denseEntries = Object.entries(obj.vectors ?? {})
+            const sparseEntries = Object.entries(obj.sparses ?? {})
+            const multiEntries = Object.entries(obj.multi_vectors ?? {})
+            return (
+              <div
+                key={obj.id}
+                className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-4"
               >
-                <GoPencil className="w-4 h-4" />
-                Update Filter
-              </button>
-              <button
-                onClick={handleDeleteById}
-                disabled={deleting}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-700 border border-red-600 text-red-600 rounded-md hover:bg-red-500 dark:hover:bg-red-500 hover:text-white transition-colors disabled:bg-red-400"
-              >
-                <GoTrash className="w-4 h-4" />
-                {deleting ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
+                {/* Header */}
+                <div className="flex items-center justify-between mb-3 border-b pb-2 border-slate-200 dark:border-slate-600">
+                  <div className="flex gap-4">
+                    <span className="font-medium text-slate-500 dark:text-slate-400 uppercase shrink-0">ID</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-100">{obj.id}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openUpdateFilterModal(obj)}
+                      disabled={deletingId === obj.id}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
+                    >
+                      <GoPencil className="w-4 h-4" />
+                      Update Filter
+                    </button>
+                    <button
+                      onClick={() => handleDelete(obj.id)}
+                      disabled={deletingId === obj.id}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-700 border border-red-600 text-red-600 rounded-md hover:bg-red-500 hover:text-white transition-colors disabled:opacity-60"
+                    >
+                      <GoTrash className="w-4 h-4" />
+                      {deletingId === obj.id ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
 
-          {/* Content */}
-          <div className="space-y-4 text-sm">
-            {result.meta && Object.keys(result.meta).length > 0 && (
-              <div className="flex gap-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Meta</span>
-                <pre className="text-slate-700 dark:text-slate-300 text-xs overflow-x-auto">
-                  {JSON.stringify(result.meta, null, 2)}
-                </pre>
+                {/* Content */}
+                <div className="space-y-3 text-sm">
+                  {obj.meta && Object.keys(obj.meta).length > 0 && (
+                    <div className="flex gap-2">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Meta</span>
+                      <pre className="text-slate-700 dark:text-slate-300 text-xs overflow-x-auto">
+                        {JSON.stringify(obj.meta, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+
+                  {obj.filter && Object.keys(obj.filter).length > 0 && (
+                    <div className="flex gap-2">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Filter</span>
+                      <code className="text-slate-700 dark:text-slate-300 text-xs">{JSON.stringify(obj.filter)}</code>
+                    </div>
+                  )}
+
+                  {/* Dense vector fields */}
+                  {denseEntries.map(([name, vec]) => (
+                    <div key={name} className="flex gap-2">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0 truncate" title={name}>
+                        {name} (vector)
+                      </span>
+                      <code className="text-slate-700 dark:text-slate-300 text-xs break-all">{vectorPreview(vec)}</code>
+                    </div>
+                  ))}
+
+                  {/* Sparse fields */}
+                  {sparseEntries.map(([name, sp]) => (
+                    <div key={name} className="flex gap-2">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0 truncate" title={name}>
+                        {name} (sparse)
+                      </span>
+                      <code className="text-slate-700 dark:text-slate-300 text-xs break-all">
+                        {sp.indices.length} terms — idx {vectorPreview(sp.indices.map(Number), 8)} · val {vectorPreview(sp.values, 8)}
+                      </code>
+                    </div>
+                  ))}
+
+                  {/* Multi-vector fields */}
+                  {multiEntries.map(([name, mv]) => (
+                    <div key={name} className="flex gap-2">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0 truncate" title={name}>
+                        {name} (multi)
+                      </span>
+                      <code className="text-slate-700 dark:text-slate-300 text-xs break-all">
+                        {mv.length} vectors{mv[0] ? ` × ${mv[0].length}d` : ''}
+                        {mv[0] ? ` — first ${vectorPreview(mv[0], 8)}` : ''}
+                      </code>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
-
-            {result.filter && (
-              <div className="flex gap-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Filter</span>
-                <code className="text-slate-700 dark:text-slate-300 text-xs">
-                  {JSON.stringify(result.filter, null, 2)}
-                </code>
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Norm</span>
-              <code className="text-slate-700 dark:text-slate-300 text-xs">{result.norm.toFixed(6)}</code>
-            </div>
-
-            <div className="flex gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Vector</span>
-              <code className="text-slate-700 dark:text-slate-300 text-xs">
-                [{result.vector.slice(0, 10).map(v => v.toFixed(4)).join(', ')}
-                {result.vector.length > 10 && `, ... (${result.vector.length})`}]
-              </code>
-            </div>
-
-            {result.sparseIndices && result.sparseIndices.length > 0 && (
-              <div className="flex gap-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Sparse Indices</span>
-                <code className="text-slate-700 dark:text-slate-300 text-xs">
-                  [{result.sparseIndices.slice(0, 10).map((idx) =>
-                    `${idx}`
-                  ).join(', ')}
-                  {result.sparseIndices.length > 10 && `, ... (${result.sparseIndices.length} terms)`}]
-                </code>
-              </div>
-            )}
-            {result.sparseValues && result.sparseValues.length > 0 && (
-              <div className="flex gap-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400 uppercase w-32 shrink-0">Sparse Values</span>
-                <code className="text-slate-700 dark:text-slate-300 text-xs">
-                  [{result.sparseValues.slice(0, 10).map((idx) =>
-                    `${idx}`
-                  ).join(', ')}
-                  {result.sparseValues.length > 10 && `, ... (${result.sparseValues.length} terms)`}]
-                </code>
-              </div>
-            )}
-          </div>
+            )
+          })}
         </div>
       )}
 
       {/* Update Filter Modal */}
-      {showUpdateFilterModal && (
+      {editingId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">Update Filter</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-              Update filter for vector: <span className="font-medium text-slate-800 dark:text-slate-200">{result?.id}</span>
+              Update filter tags for object: <span className="font-medium text-slate-800 dark:text-slate-200">{editingId}</span>
             </p>
 
             <div className="space-y-4">
-              {updateFilterError && (
-                <Notification type="error" message={updateFilterError} compact />
-              )}
-
+              {updateFilterError && <Notification type="error" message={updateFilterError} compact />}
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Filter (JSON)
-                </label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Filter (JSON)</label>
                 <textarea
                   value={filterInput}
                   onChange={(e) => setFilterInput(e.target.value)}
-                  placeholder='{"category": "ml", "score": 95}'
+                  placeholder='{"category": "electronics"}'
                   rows={6}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
@@ -319,19 +278,18 @@ export default function VectorGetPage() {
 
             <div className="flex justify-end mt-6">
               {updatingFilter ? (
-                <BarLoader color='#155dfc' />
+                <BarLoader color="#155dfc" />
               ) : (
                 <div className="flex gap-3 justify-end">
                   <button
-                    onClick={() => setShowUpdateFilterModal(false)}
-                    disabled={updatingFilter}
-                    className="px-4 py-2 bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors disabled:opacity-50"
+                    onClick={() => setEditingId(null)}
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleUpdateFilter}
-                    disabled={updatingFilter || !filterInput.trim()}
+                    disabled={!filterInput.trim()}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
                   >
                     Update

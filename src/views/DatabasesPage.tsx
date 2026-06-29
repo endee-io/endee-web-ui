@@ -1,9 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import { GoCheckCircleFill, GoPlus } from 'react-icons/go'
 import { useSelectedDatabase } from '../context/SelectedDatabaseContext'
 import Notification from '../components/Notification'
-import { useRouter } from 'next/navigation'
+import CreateDatabaseModal from '../components/CreateDatabaseModal'
 
 export default function DatabasesPage() {
   const {
@@ -12,12 +13,18 @@ export default function DatabasesPage() {
     loading,
     error,
     selectDatabase,
+    refreshDatabases,
   } = useSelectedDatabase()
 
-  const router = useRouter()
+  const [showCreate, setShowCreate] = useState(false)
 
-  const formatDate = (timestamp: number) =>
-    new Date(timestamp * 1000).toLocaleDateString('en-US', {
+  const handleCreated = async (dbName: string) => {
+    await refreshDatabases()
+    selectDatabase(dbName)
+  }
+
+  const formatDate = (timestamp: number | string | undefined) =>
+    new Date(Number(timestamp ?? 0) * 1000).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -36,9 +43,9 @@ export default function DatabasesPage() {
           </p>
         </div>
 
-        {!loading && !error && databases.length !== 0 && (
+        {!loading && !error && (
           <button
-            onClick={() => router.push('/indexes/create')}
+            onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             <GoPlus className="w-5 h-5" />
@@ -57,7 +64,13 @@ export default function DatabasesPage() {
 
       {!loading && !error && databases.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-slate-600 dark:text-slate-300">No databases found</div>
+          <div className="text-slate-600 dark:text-slate-300 mb-4">No databases found</div>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Create your first database
+          </button>
         </div>
       )}
 
@@ -65,11 +78,11 @@ export default function DatabasesPage() {
       {!loading && !error && databases.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {databases.map((db) => {
-            const isSelected = db.username === selectedDatabase
+            const isSelected = db.db_name === selectedDatabase
             return (
               <button
-                key={db.username}
-                onClick={() => selectDatabase(db.username)}
+                key={db.db_name}
+                onClick={() => selectDatabase(db.db_name)}
                 className={`text-left bg-white dark:bg-slate-700 border rounded-lg p-5 transition-all hover:shadow-md ${isSelected
                     ? 'border-blue-500 ring-1 ring-blue-500/40'
                     : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
@@ -82,9 +95,9 @@ export default function DatabasesPage() {
                     </span> */}
                     <div>
                       <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100 break-all">
-                        {db.username}
+                        {db.db_name}
                       </h3>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">{db.user_type}</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{db.db_type}</span>
                     </div>
                   </div>
                   {isSelected && (
@@ -113,6 +126,10 @@ export default function DatabasesPage() {
             )
           })}
         </div>
+      )}
+
+      {showCreate && (
+        <CreateDatabaseModal onClose={() => setShowCreate(false)} onCreated={handleCreated} />
       )}
     </div>
   )

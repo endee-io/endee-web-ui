@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
-import type { QueryOptions } from "endee"
+import type { RebuildFieldSpec } from "endee"
 import { getImpersonatedClient, requireDatabase } from "@/lib/endeeServer"
 import { errorResponse } from "@/lib/apiRoute"
 
 export const dynamic = "force-dynamic"
 
-// POST /api/collections/<name>/query?db=<database>  -> vector search
+// POST /api/collections/<name>/rebuild?db=<database>
+//   body { fields: RebuildFieldSpec[] }  -> rebuild dense fields' HNSW graphs
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ name: string }> }
@@ -13,10 +14,10 @@ export async function POST(
   try {
     const db = requireDatabase(request)
     const { name } = await params
-    const queryOptions = (await request.json()) as QueryOptions
-    const index = await getImpersonatedClient(db).getIndex(name)
-    const results = await index.query(queryOptions)
-    return NextResponse.json(results)
+    const { fields } = (await request.json()) as { fields: RebuildFieldSpec[] }
+    const collection = await getImpersonatedClient(db).getCollection(name)
+    const result = await collection.rebuild(fields)
+    return NextResponse.json(result)
   } catch (error) {
     return errorResponse(error)
   }

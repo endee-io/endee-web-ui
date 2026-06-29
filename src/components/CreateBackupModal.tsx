@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { BarLoader } from "react-spinners";
-import { api, type Index } from "../api/client";
-import { useSelectedDatabase } from "../context/SelectedDatabaseContext";
+import { api } from "../api/client";
+import type { CollectionSummary } from "../api/client";
 import { useRouter } from 'next/navigation'
 import Notification from "./Notification";
 
 type CreateBackupParams = {
     closeBackupModal: () => void;
-    indexName?: string;
+    collectionName?: string;
 }
 
 export default function CreateBackupModal(params: CreateBackupParams) {
@@ -18,62 +18,48 @@ export default function CreateBackupModal(params: CreateBackupParams) {
     const [creatingBackup, setCreatingBackup] = useState(false)
     const [backupError, setBackupError] = useState<string | null>(null)
     const [backupNameError, setBackupNameError] = useState<string | null>(null)
-    const [backupIndexName, setBackupIndexName] = useState('')
+    const [backupCollectionName, setBackupCollectionName] = useState('')
 
     const backupNamePattern = /^[a-zA-Z0-9_]{0,48}$/
     const backupNameValid = /^[a-zA-Z0-9_]{1,48}$/.test(backupName)
 
-    // Indexes for dropdown
-    const [indexes, setIndexes] = useState<Index[]>([])
-    const [loadingIndexes, setLoadingIndexes] = useState(false)
+    // Collections for the dropdown (when no collection is preselected)
+    const [collections, setCollections] = useState<CollectionSummary[]>([])
+    const [loadingCollections, setLoadingCollections] = useState(false)
 
-    const { selectedDatabase } = useSelectedDatabase();
     const router = useRouter();
 
     useEffect(() => {
-        if (params.indexName) {
-            setBackupIndexName(params.indexName)
+        if (params.collectionName) {
+            setBackupCollectionName(params.collectionName)
         } else {
-            loadIndexes()
+            loadCollections()
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    const loadIndexes = async () => {
-        setLoadingIndexes(true)
+    const loadCollections = async () => {
+        setLoadingCollections(true)
         try {
-            const response = await api.listIndexes()
-            if (response.success && response.data) {
-                setIndexes(response.data.indexes)
-            } else {
-                setIndexes([])
-            }
+            const response = await api.listCollections()
+            setCollections(response.success && response.data ? response.data : [])
         } catch {
-            setIndexes([])
+            setCollections([])
         } finally {
-            setLoadingIndexes(false)
+            setLoadingCollections(false)
         }
     }
 
     const handleCreateBackup = async () => {
-        if (!backupIndexName || !backupName.trim()) return
+        if (!backupCollectionName || !backupName.trim()) return
 
         setCreatingBackup(true)
         setBackupError(null)
         try {
-            const response = await fetch(
-                `/api/collections/${encodeURIComponent(backupIndexName)}/backup?db=${encodeURIComponent(selectedDatabase ?? '')}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: backupName.trim() })
-                }
-            )
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}))
-                throw new Error(errorData.error || 'Failed to create backup')
+            const response = await api.createBackup(backupCollectionName, backupName.trim())
+            if (!response.success) {
+                throw new Error(response.error || 'Failed to create backup')
             }
-
             params.closeBackupModal()
             router.push("/backups")
         } catch (err) {
@@ -92,40 +78,40 @@ export default function CreateBackupModal(params: CreateBackupParams) {
                         <Notification type="error" message={backupError} compact />
                     )}
 
-                    {params.indexName ? (
+                    {params.collectionName ? (
                         <p className="text-sm text-slate-600 dark:text-slate-400">
-                            Creating backup for index: <span className="font-medium text-slate-800 dark:text-slate-200">{backupIndexName}</span>
+                            Creating backup for collection: <span className="font-medium text-slate-800 dark:text-slate-200">{backupCollectionName}</span>
                         </p>
                     ) : (
                         <div>
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                Index Name
+                                Collection
                             </label>
-                            {loadingIndexes ? (
+                            {loadingCollections ? (
                                 <div className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 flex items-center gap-2">
                                     <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-                                    Loading indexes...
+                                    Loading collections...
                                 </div>
                             ) : (
                                 <select
-                                    value={backupIndexName}
-                                    onChange={(e) => { setBackupIndexName(e.target.value) }}
+                                    value={backupCollectionName}
+                                    onChange={(e) => { setBackupCollectionName(e.target.value) }}
                                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 >
-                                    <option value="">Select an index</option>
-                                    {indexes.map((index) => (
-                                        <option key={index.name} value={index.name}>
-                                            {index.name}
+                                    <option value="">Select a collection</option>
+                                    {collections.map((collection) => (
+                                        <option key={collection.name} value={collection.name}>
+                                            {collection.name}
                                         </option>
                                     ))}
                                 </select>
                             )}
-                            {!loadingIndexes && indexes.length === 0 && (
+                            {!loadingCollections && collections.length === 0 && (
                                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                                    No indexes available. Create an index first.
+                                    No collections available. Create a collection first.
                                 </p>
                             )}
                         </div>
@@ -174,7 +160,7 @@ export default function CreateBackupModal(params: CreateBackupParams) {
                             </button>
                             <button
                                 onClick={handleCreateBackup}
-                                disabled={creatingBackup || !backupNameValid}
+                                disabled={creatingBackup || !backupNameValid || !backupCollectionName}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
                             >
                                 Create Backup

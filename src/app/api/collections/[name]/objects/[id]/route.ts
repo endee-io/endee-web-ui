@@ -4,15 +4,16 @@ import { errorResponse } from "@/lib/apiRoute"
 
 export const dynamic = "force-dynamic"
 
-// GET /api/backups/<backupName>/info?db=<database>  -> backup metadata
-export async function GET(
+// DELETE /api/collections/<name>/objects/<id>?db=<database>  -> delete one object
+export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ backupName: string }> }
+  { params }: { params: Promise<{ name: string; id: string }> }
 ) {
   try {
     const db = requireDatabase(request)
-    const { backupName } = await params
-    const result = await getImpersonatedClient(db).backupInfo(backupName)
+    const { name, id } = await params
+    const collection = await getImpersonatedClient(db).getCollection(name)
+    const result = await collection.deleteObject(id)
     return NextResponse.json(result)
   } catch (error) {
     return errorResponse(error)

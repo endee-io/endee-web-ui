@@ -4,7 +4,7 @@ import { errorResponse } from "@/lib/apiRoute"
 
 export const dynamic = "force-dynamic"
 
-// GET /api/collections/<name>?db=<database>  -> describe a collection (index)
+// GET /api/collections/<name>?db=<database>  -> describe a collection
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ name: string }> }
@@ -12,14 +12,14 @@ export async function GET(
   try {
     const db = requireDatabase(request)
     const { name } = await params
-    const index = await getImpersonatedClient(db).getIndex(name)
-    return NextResponse.json(index.describe())
+    const collection = await getImpersonatedClient(db).getCollection(name)
+    return NextResponse.json(await collection.describe())
   } catch (error) {
     return errorResponse(error)
   }
 }
 
-// DELETE /api/collections/<name>?db=<database>  -> delete a collection (index)
+// DELETE /api/collections/<name>?db=<database>  -> delete a collection
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ name: string }> }
@@ -27,7 +27,7 @@ export async function DELETE(
   try {
     const db = requireDatabase(request)
     const { name } = await params
-    await getImpersonatedClient(db).deleteIndex(name)
+    await getImpersonatedClient(db).deleteCollection(name)
     return NextResponse.json({ success: true })
   } catch (error) {
     return errorResponse(error)

@@ -21,8 +21,8 @@ importers:
         specifier: ^3.12.1
         version: 3.12.1
       endee:
-        specifier: 1.7.1
-        version: 1.7.1
+        specifier: 1.8.0
+        version: 1.8.0
       next:
         specifier: ^16.2.9
         version: 16.2.9(@babel/core@7.29.7)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -1489,8 +1489,8 @@ packages:
   emojilib@2.4.0:
     resolution: {integrity: sha512-5U0rVMU5Y2n2+ykNLQqMoqklN9ICBT/KsvC1Gz6vqHbz2AXXGkG+Pm5rMWk/8Vjrr/mY9985Hi8DYzn1F09Nyw==}
 
-  endee@1.7.1:
-    resolution: {integrity: sha512-Xir1X1Z5F/0cSMFYw1WipayXpt7L/enPTw4MoP9k92Z23pmbjPgiezF+sEw9057pKJ1fsxmwc0a/uARwErhMAw==}
+  endee@1.8.0:
+    resolution: {integrity: sha512-gjIcvad6w7wNgs6ptrve3HL+c9XGpxD6ouwGUQc5dUMwEeAAya+AhrrF3MWSNiywehllYuOxZMJLO5Bq2Ng4XA==}
     engines: {node: '>=18.0.0'}
 
   enhanced-resolve@5.21.6:
@@ -4921,7 +4921,7 @@ snapshots:
 
   emojilib@2.4.0: {}
 
-  endee@1.7.1:
+  endee@1.8.0:
     dependencies:
       '@msgpack/msgpack': 3.1.3
       axios: 1.18.1

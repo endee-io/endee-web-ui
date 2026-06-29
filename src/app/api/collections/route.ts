@@ -1,27 +1,30 @@
 import { NextResponse } from "next/server"
-import type { CreateIndexOptions } from "endee"
+import type { FieldDefinition } from "endee"
 import { getImpersonatedClient, requireDatabase } from "@/lib/endeeServer"
 import { errorResponse } from "@/lib/apiRoute"
 
 export const dynamic = "force-dynamic"
 
-// GET /api/collections?db=<database>  -> list collections (indexes)
+// GET /api/collections?db=<database>  -> list collections
 export async function GET(request: Request) {
   try {
     const db = requireDatabase(request)
-    const response = await getImpersonatedClient(db).listIndexes()
-    return NextResponse.json(response)
+    const collections = await getImpersonatedClient(db).listCollections()
+    return NextResponse.json({ collections })
   } catch (error) {
     return errorResponse(error)
   }
 }
 
-// POST /api/collections?db=<database>  -> create a collection (index)
+// POST /api/collections?db=<database>  -> create a collection with typed fields
 export async function POST(request: Request) {
   try {
     const db = requireDatabase(request)
-    const options = (await request.json()) as CreateIndexOptions
-    await getImpersonatedClient(db).createIndex(options)
+    const { name, fields } = (await request.json()) as {
+      name: string
+      fields: FieldDefinition[]
+    }
+    await getImpersonatedClient(db).createCollection({ name, fields })
     return NextResponse.json({ success: true })
   } catch (error) {
     return errorResponse(error)

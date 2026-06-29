@@ -1,41 +1,93 @@
 /**
- * API Client for communicating with the Endee Vector Database backend.
+ * Browser API client for the Endee Vector Database (v2 Collections API).
  *
- * All requests are routed through Next server proxy routes (/api/collections,
- * /api/backups) which inject the per-database root-impersonation token
- * `root/<database>:<ROOT_TOKEN>` server-side. The browser never holds the root
- * token. Every call is scoped to the currently-selected database, set via
- * `setCurrentDatabase()` (driven by SelectedDatabaseContext).
+ * All requests are routed through the Next server proxy routes (/api/collections,
+ * /api/backups, /api/databases) which inject the per-database root-impersonation
+ * token `root/<database>:<ROOT_TOKEN>` server-side. The browser never holds a
+ * token and never imports the `endee` SDK at runtime — only its TypeScript types
+ * (erased at build time). Every data-plane call is scoped to the currently
+ * selected database, set via `setCurrentDatabase()` (driven by the selected-db
+ * store).
  */
 
-import { Precision } from "endee";
 import type {
-  VectorItem,
-  QueryOptions,
-  QueryResult,
-  CreateIndexOptions,
-  IndexDescription,
-  VectorInfo,
-} from "endee";
+  FieldDefinition,
+  FieldType,
+  SpaceType,
+  ObjectInput,
+  FieldValue,
+  SparseValue,
+  SearchHit,
+  SearchOptions,
+  CollectionMetadata,
+  FullObject,
+  UpdateFilterEntry,
+  RebuildFieldSpec,
+  DatabaseInfo,
+  DbType,
+  TokenType,
+} from "endee"
 
-// Re-export types from endee for use in UI components
-export type { VectorItem, QueryOptions, QueryResult, CreateIndexOptions, IndexDescription };
-export { Precision };
+// Re-export the SDK types the UI builds on, so views import them from one place.
+export type {
+  FieldDefinition,
+  FieldType,
+  SpaceType,
+  ObjectInput,
+  FieldValue,
+  SparseValue,
+  SearchHit,
+  SearchOptions,
+  CollectionMetadata,
+  FullObject,
+  UpdateFilterEntry,
+  RebuildFieldSpec,
+  DatabaseInfo,
+  DbType,
+  TokenType,
+}
+
+/** Database tiers, mirrors the SDK's VALID_DB_TYPES. */
+export const DB_TYPES: DbType[] = ["starter", "pro", "scale", "enterprise"]
+
+/**
+ * Precision values for vector / multi_vector fields. Declared as a string union
+ * (mirrors the SDK's `Precision` enum) so the browser bundle never pulls in the
+ * runtime SDK.
+ */
+export type Precision =
+  | "binary"
+  | "int8"
+  | "int8e"
+  | "int16"
+  | "float16"
+  | "float32"
+
+export const PRECISIONS: Precision[] = [
+  "float32",
+  "float16",
+  "int16",
+  "int8",
+  "int8e",
+  "binary",
+]
+
+export const SPACE_TYPES: SpaceType[] = ["cosine", "l2", "ip"]
 
 // ============================================================
 // SELECTED DATABASE
 // ============================================================
 
-let currentDatabase: string | null = null;
+let currentDatabase: string | null = null
 
-/** Set the database all subsequent API calls are scoped to. */
+/** Set the database all subsequent data-plane API calls are scoped to. */
 export function setCurrentDatabase(database: string | null): void {
-  currentDatabase = database;
+  currentDatabase = database
 }
 
 /** The database API calls are currently scoped to (or null). */
 export function getCurrentDatabase(): string | null {
-  return currentDatabase;
+  return currentDatabase
 }
 
 // ============================================================
@@ -43,70 +95,81 @@ export function getCurrentDatabase(): string | null {
 // ============================================================
 
 export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
+  success: boolean
+  data?: T
+  error?: string
 }
 
-// Type for the raw list response from the API (snake_case from backend)
-interface RawIndexListItem {
-  name: string;
-  M: number;
-  total_elements: number;
-  space_type: string;
-  precision: Precision;
-  created_at: number;
-  dimension: number;
-  sparse_model: string;
+/** Result of creating a database — includes the one-time `db_token`. */
+export interface CreateDatabaseResult {
+  db_name: string
+  db_token: string
+  db_type?: string
+  message?: string
+  [key: string]: unknown
 }
 
-// Index type for list display (uses snake_case to match API response)
-export interface Index {
-  name: string;
-  M: number;
-  total_elements: number;
-  space_type: string;
-  precision: Precision;
-  created_at: number;
-  dimension: number;
-  sparseModel: string;
+/** A collection as returned by `listCollections` (server metadata, snake_case). */
+export interface CollectionSummary {
+  name: string
+  fields: FieldDefinition[]
+  created_at?: number | string
+  layout_version?: number
+  /** Current object count. */
+  total_elements?: number
+  /** Configured capacity. */
+  max_elements?: number
+  [key: string]: unknown
 }
 
-export interface IndexListResponse {
-  indexes: Index[];
+/** Per-field search config: `{ query, limit?, ef_search? }`. */
+export interface FieldQuery {
+  query: FieldValue
+  limit?: number
+  ef_search?: number
 }
 
-// Search request parameters
+/** Optional RRF fusion of the per-field results into a single ranked list. */
+export interface RerankRequest {
+  limit?: number
+  fieldWeights?: Record<string, number> | null
+  rrfK?: number
+}
+
 export interface SearchRequest {
-  vector: number[];
-  k: number;
-  ef?: number;
-  filter?: string;
-  include_vectors?: boolean;
-  sparse_indices?: number[];
-  sparse_values?: number[];
+  fields: Record<string, FieldQuery>
+  filter?: Array<Record<string, unknown>> | null
+  efSearch?: number
+  prefilterCardinalityThreshold?: number
+  filterBoostPercentage?: number
+  /** When set, the server fuses the per-field lists with `rerank()`. */
+  rerank?: RerankRequest
 }
 
-export interface VectorGetRequest {
-  id?: string;
+/** Search outcome: per-field ranked lists, or a single fused list when reranked. */
+export type SearchOutcome =
+  | { fused: false; results: Record<string, SearchHit[]> }
+  | { fused: true; results: SearchHit[] }
+
+/** True if a collection has at least one field of the given type. */
+export function hasFieldType(
+  collection: { fields: FieldDefinition[] },
+  type: FieldType
+): boolean {
+  return collection.fields.some((f) => f.type === type)
 }
 
-// Helper function to check if an index is hybrid
-export function isHybridIndex(index: Index): boolean {
-  return (index.sparseModel == 'default' || index.sparseModel == 'endee_bm25') ;
-}
-
-// Helper function to format space type to readable state
-function formatSpaceType(space_type : string) : string {
-  switch (space_type){
-    case 'cosine':
-      return 'Cosine';
-    case 'l2':
-      return 'Euclidean';
-    case 'ip':
-      return 'Inner Product';
+/** Human-readable label for a space type. */
+export function formatSpaceType(spaceType: string): string {
+  switch (spaceType) {
+    case "cosine":
+      return "Cosine"
+    case "l2":
+      return "Euclidean"
+    case "ip":
+      return "Inner Product"
     default:
-      return 'Unknown';
+      return spaceType || "Unknown"
   }
 }
 
@@ -116,239 +179,284 @@ function formatSpaceType(space_type : string) : string {
 
 class NoDatabaseError extends Error {
   constructor() {
-    super("No database selected.");
+    super("No database selected.")
   }
 }
 
 /** Append the current `db` query param to a proxy path. */
 function withDb(path: string): string {
-  if (!currentDatabase) throw new NoDatabaseError();
-  const sep = path.includes("?") ? "&" : "?";
-  return `${path}${sep}db=${encodeURIComponent(currentDatabase)}`;
+  if (!currentDatabase) throw new NoDatabaseError()
+  const sep = path.includes("?") ? "&" : "?"
+  return `${path}${sep}db=${encodeURIComponent(currentDatabase)}`
 }
 
-/** Issue a request to a proxy route and unwrap to { data } or throw. */
+/** Issue a db-scoped request to a proxy route and unwrap to `T` or throw. */
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(withDb(path), {
+  return rawRequest<T>(withDb(path), init)
+}
+
+/** Issue a request to a proxy route that is NOT scoped to a database. */
+async function rawRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
     cache: "no-store",
-  });
-  const payload = await response.json().catch(() => ({}));
+  })
+  const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
     throw new Error(
       (payload as { error?: string }).error || `Request failed (${response.status})`
-    );
+    )
   }
-  return payload as T;
+  return payload as T
 }
 
 function toApiResponse<T>(fn: () => Promise<T>): Promise<ApiResponse<T>> {
   return fn()
     .then((data) => ({ success: true, data }))
     .catch((error) => {
-      console.error("API request failed:", error);
+      console.error("API request failed:", error)
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
-      };
-    });
+      }
+    })
 }
+
+const enc = encodeURIComponent
 
 // ============================================================
 // API CLIENT
 // ============================================================
 
 class ApiClient {
-  // ============================================================
-  // HEALTH
-  // ============================================================
+  // ── collections ───────────────────────────────────────────
 
-  async health(): Promise<ApiResponse<{ status: string }>> {
+  async listCollections(): Promise<ApiResponse<CollectionSummary[]>> {
     return toApiResponse(async () => {
-      await request<{ indexes: RawIndexListItem[] }>("/api/collections");
-      return { status: "ok" };
-    });
+      const res = await request<{ collections: CollectionSummary[] }>("/api/collections")
+      return res.collections || []
+    })
   }
 
-  // ============================================================
-  // COLLECTION (INDEX) OPERATIONS
-  // ============================================================
-
-  async listIndexes(): Promise<ApiResponse<IndexListResponse>> {
-    return toApiResponse(async () => {
-      const response = await request<{ indexes: RawIndexListItem[] }>("/api/collections");
-      const rawIndexes = response.indexes || [];
-      const indexes: Index[] = rawIndexes.map((idx) => ({
-        name: idx.name,
-        M: idx.M,
-        total_elements: idx.total_elements,
-        space_type: formatSpaceType(idx.space_type),
-        precision: idx.precision,
-        created_at: idx.created_at,
-        dimension: idx.dimension,
-        sparseModel: idx.sparse_model || "",
-      }));
-      return { indexes };
-    });
-  }
-
-  async getIndexInfo(indexName: string): Promise<ApiResponse<IndexDescription>> {
+  async getCollection(name: string): Promise<ApiResponse<CollectionSummary>> {
+    // describe() returns the same rich shape as a list entry (fields + counts).
     return toApiResponse(() =>
-      request<IndexDescription>(`/api/collections/${encodeURIComponent(indexName)}`)
-    );
+      request<CollectionSummary>(`/api/collections/${enc(name)}`)
+    )
   }
 
-  async createIndex(
-    indexName: string,
-    dimension: number,
-    spaceType: string,
-    options?: {
-      precision?: Precision;
-      sparseModel?: string | null;
-      M?: number;
-      ef_con?: number;
-    }
-  ): Promise<ApiResponse<{ success: boolean; message: string }>> {
-    return toApiResponse(async () => {
-      const createOptions: CreateIndexOptions = {
-        name: indexName,
-        dimension: dimension,
-        spaceType: spaceType as "cosine" | "l2" | "ip",
-      };
-      if (options?.precision) createOptions.precision = options.precision;
-      if (options?.sparseModel) createOptions.sparseModel = options.sparseModel;
-      if (options?.M) createOptions.M = options.M;
-      if (options?.ef_con) createOptions.efCon = options.ef_con;
-
-      await request("/api/collections", {
+  async createCollection(params: {
+    name: string
+    fields: FieldDefinition[]
+  }): Promise<ApiResponse<{ success: boolean }>> {
+    return toApiResponse(() =>
+      request<{ success: boolean }>("/api/collections", {
         method: "POST",
-        body: JSON.stringify(createOptions),
-      });
-      return { success: true, message: "Index created successfully" };
-    });
+        body: JSON.stringify(params),
+      })
+    )
   }
 
-  async deleteIndex(
-    indexName: string
-  ): Promise<ApiResponse<{ success: boolean; message: string }>> {
-    return toApiResponse(async () => {
-      await request(`/api/collections/${encodeURIComponent(indexName)}`, {
+  async deleteCollection(name: string): Promise<ApiResponse<{ success: boolean }>> {
+    return toApiResponse(() =>
+      request<{ success: boolean }>(`/api/collections/${enc(name)}`, {
         method: "DELETE",
-      });
-      return { success: true, message: "Index deleted successfully" };
-    });
+      })
+    )
   }
 
-  // ============================================================
-  // VECTOR OPERATIONS
-  // ============================================================
+  // ── objects ───────────────────────────────────────────────
 
-  async insertVectors(
-    indexName: string,
-    vectors: VectorItem[]
-  ): Promise<ApiResponse<{ success: boolean; inserted: number }>> {
-    return toApiResponse(async () => {
-      await request(`/api/collections/${encodeURIComponent(indexName)}/vectors`, {
+  async upsertObjects(
+    name: string,
+    objects: ObjectInput[]
+  ): Promise<ApiResponse<{ upserted: number }>> {
+    return toApiResponse(() =>
+      request<{ upserted: number }>(`/api/collections/${enc(name)}/objects`, {
         method: "POST",
-        body: JSON.stringify({ vectors }),
-      });
-      return { success: true, inserted: vectors.length };
-    });
+        body: JSON.stringify({ objects }),
+      })
+    )
   }
 
-  async getVector(
-    indexName: string,
-    requestParams: VectorGetRequest
-  ): Promise<ApiResponse<VectorInfo>> {
+  async getObjects(
+    name: string,
+    ids: string[]
+  ): Promise<ApiResponse<FullObject[]>> {
     return toApiResponse(async () => {
-      if (!requestParams.id) {
-        throw new Error("Either id or filter must be provided");
-      }
-      return request<VectorInfo>(
-        `/api/collections/${encodeURIComponent(indexName)}/vectors?id=${encodeURIComponent(
-          requestParams.id
-        )}`
-      );
-    });
+      const res = await request<{ objects: FullObject[] }>(
+        `/api/collections/${enc(name)}/objects/query`,
+        { method: "POST", body: JSON.stringify({ ids }) }
+      )
+      return res.objects || []
+    })
   }
 
-  async deleteVectorById(
-    indexName: string,
-    vectorId: string
-  ): Promise<ApiResponse<{ success: boolean; message: string }>> {
-    return toApiResponse(async () => {
-      await request(
-        `/api/collections/${encodeURIComponent(indexName)}/vectors?id=${encodeURIComponent(
-          vectorId
-        )}`,
+  async deleteObject(
+    name: string,
+    id: string
+  ): Promise<ApiResponse<{ deleted: string }>> {
+    return toApiResponse(() =>
+      request<{ deleted: string }>(
+        `/api/collections/${enc(name)}/objects/${enc(id)}`,
         { method: "DELETE" }
-      );
-      return { success: true, message: "Vector deleted successfully" };
-    });
+      )
+    )
+  }
+
+  async deleteByFilter(
+    name: string,
+    filter: Array<Record<string, unknown>>
+  ): Promise<ApiResponse<{ deleted: number }>> {
+    return toApiResponse(() =>
+      request<{ deleted: number }>(`/api/collections/${enc(name)}/objects`, {
+        method: "DELETE",
+        body: JSON.stringify({ filter }),
+      })
+    )
   }
 
   async updateFilters(
-    indexName: string,
-    updates: Array<{ id: string; filter: Record<string, unknown> }>
-  ): Promise<ApiResponse<{ success: boolean; message: string }>> {
-    return toApiResponse(async () => {
-      await request(`/api/collections/${encodeURIComponent(indexName)}/vectors`, {
-        method: "PATCH",
+    name: string,
+    updates: UpdateFilterEntry[]
+  ): Promise<ApiResponse<{ updated: number }>> {
+    return toApiResponse(() =>
+      request<{ updated: number }>(`/api/collections/${enc(name)}/filters`, {
+        method: "POST",
         body: JSON.stringify({ updates }),
-      });
-      return { success: true, message: "Filters updated successfully" };
-    });
+      })
+    )
   }
 
-  async deleteVectorsByFilter(
-    indexName: string,
-    filter: Array<Record<string, unknown>>
-  ): Promise<ApiResponse<{ success: boolean; deleted: number }>> {
-    return toApiResponse(async () => {
-      const result = await request<{ deleted: number }>(
-        `/api/collections/${encodeURIComponent(indexName)}/vectors`,
-        { method: "DELETE", body: JSON.stringify({ filter }) }
-      );
-      return { success: true, deleted: result.deleted ?? 0 };
-    });
-  }
+  // ── search ────────────────────────────────────────────────
 
-  // ============================================================
-  // SEARCH OPERATIONS
-  // ============================================================
-
-  async searchVectors(
-    indexName: string,
+  async search(
+    name: string,
     searchRequest: SearchRequest
-  ): Promise<ApiResponse<QueryResult[]>> {
-    return toApiResponse(async () => {
-      const queryOptions: QueryOptions = {
-        vector: searchRequest.vector,
-        topK: searchRequest.k,
-      };
-      if (searchRequest.ef) queryOptions.ef = searchRequest.ef;
-      if (searchRequest.filter) {
-        try {
-          queryOptions.filter = JSON.parse(searchRequest.filter);
-        } catch {
-          // If it's not valid JSON, pass as-is (omit)
-        }
-      }
-      if (searchRequest.include_vectors) queryOptions.includeVectors = searchRequest.include_vectors;
-      if (searchRequest.sparse_indices) queryOptions.sparseIndices = searchRequest.sparse_indices;
-      if (searchRequest.sparse_values) queryOptions.sparseValues = searchRequest.sparse_values;
+  ): Promise<ApiResponse<SearchOutcome>> {
+    return toApiResponse(() =>
+      request<SearchOutcome>(`/api/collections/${enc(name)}/search`, {
+        method: "POST",
+        body: JSON.stringify(searchRequest),
+      })
+    )
+  }
 
-      return request<QueryResult[]>(
-        `/api/collections/${encodeURIComponent(indexName)}/query`,
-        { method: "POST", body: JSON.stringify(queryOptions) }
-      );
-    });
+  // ── maintenance ───────────────────────────────────────────
+
+  async rebuild(
+    name: string,
+    fields: RebuildFieldSpec[]
+  ): Promise<ApiResponse<Record<string, unknown>>> {
+    return toApiResponse(() =>
+      request<Record<string, unknown>>(`/api/collections/${enc(name)}/rebuild`, {
+        method: "POST",
+        body: JSON.stringify({ fields }),
+      })
+    )
+  }
+
+  async rebuildStatus(name: string): Promise<ApiResponse<Record<string, unknown>>> {
+    return toApiResponse(() =>
+      request<Record<string, unknown>>(`/api/collections/${enc(name)}/rebuild/status`)
+    )
+  }
+
+  async shrink(name: string): Promise<ApiResponse<Record<string, unknown>>> {
+    return toApiResponse(() =>
+      request<Record<string, unknown>>(`/api/collections/${enc(name)}/shrink`, {
+        method: "POST",
+      })
+    )
+  }
+
+  // ── backups (db-scoped) ───────────────────────────────────
+
+  async createBackup(
+    name: string,
+    backupName: string
+  ): Promise<ApiResponse<Record<string, unknown>>> {
+    return toApiResponse(() =>
+      request<Record<string, unknown>>(`/api/collections/${enc(name)}/backup`, {
+        method: "POST",
+        body: JSON.stringify({ name: backupName }),
+      })
+    )
+  }
+
+  async listBackups(): Promise<ApiResponse<Record<string, unknown>>> {
+    return toApiResponse(() => request<Record<string, unknown>>("/api/backups"))
+  }
+
+  async activeBackup(): Promise<ApiResponse<Record<string, unknown>>> {
+    return toApiResponse(() =>
+      request<Record<string, unknown>>("/api/backups/active")
+    )
+  }
+
+  async backupInfo(backupName: string): Promise<ApiResponse<Record<string, unknown>>> {
+    return toApiResponse(() =>
+      request<Record<string, unknown>>(`/api/backups/${enc(backupName)}/info`)
+    )
+  }
+
+  async restoreBackup(
+    backupName: string,
+    targetCollectionName: string
+  ): Promise<ApiResponse<Record<string, unknown>>> {
+    return toApiResponse(() =>
+      request<Record<string, unknown>>(`/api/backups/${enc(backupName)}/restore`, {
+        method: "POST",
+        body: JSON.stringify({ target_collection_name: targetCollectionName }),
+      })
+    )
+  }
+
+  async deleteBackup(backupName: string): Promise<ApiResponse<Record<string, unknown>>> {
+    return toApiResponse(() =>
+      request<Record<string, unknown>>(`/api/backups/${enc(backupName)}`, {
+        method: "DELETE",
+      })
+    )
+  }
+
+  /** Resolve the tokenized backend URL the browser streams the `.tar` from. */
+  async downloadBackupUrl(backupName: string): Promise<ApiResponse<{ url: string }>> {
+    return toApiResponse(() =>
+      request<{ url: string }>(`/api/backups/${enc(backupName)}/download`)
+    )
+  }
+
+  // ── databases (control plane; root token, not db-scoped) ──
+
+  async listDatabases(): Promise<ApiResponse<DatabaseInfo[]>> {
+    return toApiResponse(async () => {
+      const res = await rawRequest<{ databases: DatabaseInfo[] }>("/api/databases")
+      return res.databases || []
+    })
+  }
+
+  /**
+   * Create a database (requires the server root token, applied server-side).
+   * Returns the server response including the new `db_token` (`db_name:secret`),
+   * which is shown only once.
+   */
+  async createDatabase(
+    dbName: string,
+    dbType: DbType
+  ): Promise<ApiResponse<CreateDatabaseResult>> {
+    return toApiResponse(() =>
+      rawRequest<CreateDatabaseResult>("/api/databases", {
+        method: "POST",
+        body: JSON.stringify({ db_name: dbName, db_type: dbType }),
+      })
+    )
   }
 }
 
 // Export singleton instance
-export const api = new ApiClient();
+export const api = new ApiClient()
 
 // Export the class for testing
-export default ApiClient;
+export default ApiClient

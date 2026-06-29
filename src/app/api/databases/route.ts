@@ -1,73 +1,40 @@
 import { NextResponse } from "next/server"
+import type { DbType } from "endee"
+import { getAdminClient } from "@/lib/endeeServer"
+import { errorResponse } from "@/lib/apiRoute"
 
 /**
- * Server-side proxy for listing server users (surfaced as "Databases" in the
- * UI). Runs on the server only so the admin ROOT_TOKEN is never exposed to the
- * browser.
+ * Server-side proxy for the server's databases. Runs on the server only so the
+ * admin ROOT_TOKEN (required for /admin/dbs) is never exposed to the browser.
  *
- * GET /api/databases  ->  GET {SERVER_URL}/admin/users  (Authorization: ROOT_TOKEN)
+ * GET  /api/databases  ->  { databases: DatabaseInfo[] }
+ * POST /api/databases  ->  create a database; returns the new db_token (once)
  */
 
 // This route depends on request-time env/secrets; never statically cache it.
 export const dynamic = "force-dynamic"
 
-interface ServerUser {
-  username: string
-  user_type: string
-  is_active: boolean
-  created_at: number
-}
-
-function getServerUrl(): string {
-  const url =
-    process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_ENDEE_URL || ""
-  return url.replace(/\/+$/, "")
-}
-
 export async function GET() {
-  const serverUrl = getServerUrl()
-  const rootToken = process.env.ROOT_TOKEN
-
-  if (!serverUrl) {
-    return NextResponse.json(
-      { error: "Server URL is not configured (NEXT_PUBLIC_SERVER_URL)." },
-      { status: 500 }
-    )
-  }
-  if (!rootToken) {
-    return NextResponse.json(
-      { error: "Admin token is not configured (ROOT_TOKEN)." },
-      { status: 500 }
-    )
-  }
-
-  let upstream: Response
   try {
-    upstream = await fetch(`${serverUrl}/admin/users`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: rootToken,
-      },
-      cache: "no-store",
-    })
-  } catch {
-    return NextResponse.json(
-      { error: "Could not reach the Endee server." },
-      { status: 502 }
-    )
+    const databases = await getAdminClient().listDatabases()
+    return NextResponse.json({ databases })
+  } catch (error) {
+    return errorResponse(error)
   }
+}
 
-  if (!upstream.ok) {
-    let message = `Failed to list databases (status ${upstream.status}).`
-    if (upstream.status === 401) {
-      message = "Admin token rejected by the server."
+export async function POST(request: Request) {
+  try {
+    const { db_name, db_type } = (await request.json()) as {
+      db_name: string
+      db_type: DbType
     }
-    return NextResponse.json({ error: message }, { status: upstream.status })
+    if (!db_name || !db_name.trim()) {
+      return NextResponse.json({ error: "db_name is required" }, { status: 400 })
+    }
+    const result = await getAdminClient().createDatabase(db_name.trim(), db_type)
+    return NextResponse.json(result)
+  } catch (error) {
+    return errorResponse(error)
   }
-
-  const data = (await upstream.json().catch(() => ({}))) as {
-    users?: ServerUser[]
-  }
-  return NextResponse.json({ users: data.users ?? [] })
 }

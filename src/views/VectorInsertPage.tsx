@@ -4,170 +4,147 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { GoArrowLeft, GoPlus, GoTrash } from 'react-icons/go'
 import { api } from '../api/client'
-import type { IndexDescription, VectorItem } from 'endee'
+import type { CollectionSummary, FieldDefinition, ObjectInput, FieldValue } from '../api/client'
+import { typeLabel, typeBadge, fieldDimension, sparseModel, parseFieldValue } from '../lib/collectionFields'
 import Notification from '../components/Notification'
 
-interface VectorInput {
+interface FieldInput {
+  value: string
+  sparseIndices: string
+  sparseValues: string
+}
+
+interface ObjectDraft {
   id: string
-  vector: string
-  sparse_indices: string
-  sparse_values: string
   meta: string
   filter: string
+  fields: Record<string, FieldInput>
+}
+
+const emptyFieldInput = (): FieldInput => ({ value: '', sparseIndices: '', sparseValues: '' })
+
+function emptyObject(fields: FieldDefinition[]): ObjectDraft {
+  const f: Record<string, FieldInput> = {}
+  fields.forEach((field) => { f[field.name] = emptyFieldInput() })
+  return { id: '', meta: '', filter: '', fields: f }
+}
+
+/** True if the user entered something for this field. */
+function hasFieldInput(field: FieldDefinition, input: FieldInput): boolean {
+  if (field.type === 'sparse') return !!(input.sparseIndices.trim() || input.sparseValues.trim())
+  return !!input.value.trim()
 }
 
 export default function VectorInsertPage() {
   const params = useParams()
-  const indexName = params?.indexName as string
+  const collectionName = params?.collectionName as string
   const router = useRouter()
-  const [indexInfo, setIndexInfo] = useState<IndexDescription | null>(null)
-  const [loadingIndex, setLoadingIndex] = useState(true)
-  const [vectors, setVectors] = useState<VectorInput[]>([
-    { id: '', vector: '', sparse_indices: '', sparse_values: '', meta: '', filter : '' }
-  ])
+
+  const [collection, setCollection] = useState<CollectionSummary | null>(null)
+  const [loadingCollection, setLoadingCollection] = useState(true)
+  const [objects, setObjects] = useState<ObjectDraft[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  
-  const isHybrid = indexInfo?.isHybrid;
+
+  const fields = collection?.fields ?? []
 
   useEffect(() => {
-    if (indexName) {
-      loadIndexInfo()
-    }
-  }, [indexName])
+    if (collectionName) loadCollection()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectionName])
 
-  const loadIndexInfo = async () => {
-    if (!indexName) return
-    setLoadingIndex(true)
+  const loadCollection = async () => {
+    if (!collectionName) return
+    setLoadingCollection(true)
     try {
-      const response = await api.getIndexInfo(indexName)
+      const response = await api.getCollection(collectionName)
       if (response.success && response.data) {
-        setIndexInfo(response.data)
+        setCollection(response.data)
+        setObjects([emptyObject(response.data.fields ?? [])])
+      } else {
+        setError(response.error || 'Failed to load collection')
       }
     } catch (err) {
-      console.error('Failed to load index info:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load collection')
     } finally {
-      setLoadingIndex(false)
+      setLoadingCollection(false)
     }
   }
 
-  const addVector = () => {
-    setVectors([...vectors, { id: '', vector: '', sparse_indices: '', sparse_values: '', meta: '', filter: '' }])
-  }
+  const addObject = () => setObjects((prev) => [...prev, emptyObject(fields)])
+  const removeObject = (i: number) => setObjects((prev) => (prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev))
 
-  const removeVector = (index: number) => {
-    if (vectors.length > 1) {
-      setVectors(vectors.filter((_, i) => i !== index))
+  const updateObject = (i: number, patch: Partial<Pick<ObjectDraft, 'id' | 'meta' | 'filter'>>) =>
+    setObjects((prev) => prev.map((o, idx) => (idx === i ? { ...o, ...patch } : o)))
+
+  const updateField = (i: number, fieldName: string, patch: Partial<FieldInput>) =>
+    setObjects((prev) =>
+      prev.map((o, idx) =>
+        idx === i
+          ? { ...o, fields: { ...o.fields, [fieldName]: { ...o.fields[fieldName], ...patch } } }
+          : o
+      )
+    )
+
+  const buildObject = (draft: ObjectDraft): ObjectInput => {
+    if (!draft.id.trim()) throw new Error('Object ID is required')
+    const obj: ObjectInput = { id: draft.id.trim() }
+
+    const fieldValues: Record<string, FieldValue> = {}
+    for (const field of fields) {
+      const input = draft.fields[field.name]
+      if (!input || !hasFieldInput(field, input)) continue
+      try {
+        fieldValues[field.name] = parseFieldValue(field, input)
+      } catch (err) {
+        throw new Error(`Field "${field.name}": ${err instanceof Error ? err.message : 'invalid value'}`)
+      }
     }
-  }
-
-  const updateVector = (index: number, field: keyof VectorInput, value: string) => {
-    const updated = [...vectors]
-    updated[index][field] = value
-    setVectors(updated)
-  }
-
-  const parseVector = (input: VectorInput): VectorItem | null => {
-    try {
-      if (!input.id.trim()) {
-        throw new Error('Vector ID is required')
-      }
-
-      const vectorArray = JSON.parse(`[${input.vector}]`)
-      if (!Array.isArray(vectorArray) || vectorArray.length === 0) {
-        throw new Error('Vector must be a non-empty array of numbers')
-      }
-
-      const result: VectorItem = {
-        id: input.id.trim(),
-        vector: vectorArray,
-      }
-
-      // Only parse sparse fields for hybrid indexes
-      if (isHybrid) {
-        if (input.sparse_indices.trim()) {
-          result.sparseIndices = JSON.parse(`[${input.sparse_indices}]`)
-        }
-
-        if (input.sparse_values.trim()) {
-          result.sparseValues = JSON.parse(`[${input.sparse_values}]`)
-        }
-
-        // Validate sparse arrays have same length
-        if (result.sparseIndices && result.sparseValues) {
-          if (result.sparseIndices.length !== result.sparseValues.length) {
-            throw new Error('Sparse indices and values must have the same length')
-          }
-        } else if (result.sparseIndices || result.sparseValues) {
-          throw new Error('Both sparse indices and sparse values must be provided together')
-        }
-      }
-
-      if (input.meta.trim()) {
-        result.meta = JSON.parse(input.meta)
-      }
-
-      if (input.filter.trim()) {
-        // Validate it's valid JSON, but pass as string
-        const parsedFilter = JSON.parse(input.filter)
-        result.filter = parsedFilter;
-      }
-
-      return result
-    } catch (err) {
-      throw new Error(`Invalid vector data: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    if (Object.keys(fieldValues).length === 0) {
+      throw new Error(`Object "${draft.id}" has no field values`)
     }
+    obj.fields = fieldValues
+
+    if (draft.meta.trim()) {
+      try { obj.meta = JSON.parse(draft.meta) } catch { throw new Error(`Object "${draft.id}": metadata must be valid JSON`) }
+    }
+    if (draft.filter.trim()) {
+      try { obj.filter = JSON.parse(draft.filter) } catch { throw new Error(`Object "${draft.id}": filter must be valid JSON`) }
+    }
+    return obj
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setSuccess(null)
-
-    if (!indexName) return
+    if (!collectionName) return
 
     try {
-      // Filter out completely empty vectors before parsing
-      const nonEmptyVectors = vectors.filter(v => v.id.trim() || v.vector.trim())
+      const drafts = objects.filter((o) => o.id.trim() || fields.some((f) => hasFieldInput(f, o.fields[f.name])))
+      if (drafts.length === 0) throw new Error('At least one object is required')
 
-      if (nonEmptyVectors.length === 0) {
-        throw new Error('At least one vector is required')
-      }
-
-      const parsedVectors: VectorItem[] = []
-      for (let i = 0; i < nonEmptyVectors.length; i++) {
-        const parsed = parseVector(nonEmptyVectors[i])
-        if (parsed) {
-          parsedVectors.push(parsed)
-        }
-      }
-
-      if (parsedVectors.length === 0) {
-        throw new Error('At least one valid vector is required')
-      }
+      const payload = drafts.map(buildObject)
 
       setSubmitting(true)
-      const response = await api.insertVectors(indexName, parsedVectors)
+      const response = await api.upsertObjects(collectionName, payload)
+      if (!response.success) throw new Error(response.error || 'Failed to insert objects')
 
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to insert vectors')
-      }
-
-      setSuccess(`Successfully inserted ${parsedVectors.length} vector(s)`)
-      setVectors([{ id: '', vector: '', sparse_indices: '', sparse_values: '', meta: '', filter: '' }])
+      setSuccess(`Successfully upserted ${response.data?.upserted ?? payload.length} object(s)`)
+      setObjects([emptyObject(fields)])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to insert vectors')
+      setError(err instanceof Error ? err.message : 'Failed to insert objects')
     } finally {
       setSubmitting(false)
     }
   }
 
-  if (loadingIndex) {
+  if (loadingCollection) {
     return (
       <div className="p-6">
         <div className="flex justify-center items-center py-12">
-          <div className="text-slate-600 dark:text-slate-300">Loading index information...</div>
+          <div className="text-slate-600 dark:text-slate-300">Loading collection information...</div>
         </div>
       </div>
     )
@@ -178,49 +155,34 @@ export default function VectorInsertPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => router.push(`/indexes/${indexName}`)}
+          onClick={() => router.push(`/collections/${collectionName}`)}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />
-          Back to {indexName}
+          Back to {collectionName}
         </button>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Insert Vectors</h1>
-          {isHybrid && (
-            <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full">
-              Hybrid Index
-            </span>
-          )}
-        </div>
-        {/* <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-          Add new {isHybrid ? 'hybrid (dense + sparse)' : 'dense'} vectors to "{indexName}"
-        </p> */}
+        <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Insert Objects</h1>
+        <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+          Upsert objects into &quot;{collectionName}&quot;. Each object may set values for any subset of fields.
+        </p>
       </div>
 
-      {/* Success Message */}
-      {success && (
-        <Notification type="success" message={success} onDismiss={() => setSuccess(null)} className="mb-6" />
-      )}
+      {success && <Notification type="success" message={success} onDismiss={() => setSuccess(null)} className="mb-6" />}
+      {error && <Notification type="error" message={error} onDismiss={() => setError(null)} className="mb-6" />}
 
-      {/* Error Message */}
-      {error && (
-        <Notification type="error" message={error} onDismiss={() => setError(null)} className="mb-6" />
-      )}
-
-      {/* Form */}
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
-          {vectors.map((vector, index) => (
+          {objects.map((obj, index) => (
             <div
               key={index}
               className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5"
             >
               <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold text-slate-800 dark:text-slate-100">Vector #{index + 1}</h3>
-                {vectors.length > 1 && (
+                <h3 className="font-semibold text-slate-800 dark:text-slate-100">Object #{index + 1}</h3>
+                {objects.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => removeVector(index)}
+                    onClick={() => removeObject(index)}
                     className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
                   >
                     <GoTrash className="w-4 h-4" />
@@ -229,109 +191,105 @@ export default function VectorInsertPage() {
               </div>
 
               <div className="space-y-4">
-                {/* Basic Fields */}
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                      Vector ID <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={vector.id}
-                      onChange={(e) => updateVector(index, 'id', e.target.value)}
-                      placeholder="e.g., vec_001"
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      disabled={submitting}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                      Dense Vector <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={vector.vector}
-                      onChange={(e) => updateVector(index, 'vector', e.target.value)}
-                      placeholder={`e.g., 0.1, 0.2, 0.3, ... (${indexInfo?.dimension || 'n'} dimensions)`}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      disabled={submitting}
-                    />
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Comma-separated numbers ({indexInfo?.dimension} dimensions)
-                    </p>
-                  </div>
-                </div>
-
-                {/* Sparse Fields - Only shown for hybrid indexes */}
-                {isHybrid && (
-                  <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-md border border-purple-200 dark:border-purple-800">
-                    <h4 className="text-sm font-medium text-purple-800 dark:text-purple-300 mb-3">
-                      Sparse Vector (Hybrid Index)
-                    </h4>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                          Sparse Indices
-                        </label>
-                        <input
-                          type="text"
-                          value={vector.sparse_indices}
-                          onChange={(e) => updateVector(index, 'sparse_indices', e.target.value)}
-                          placeholder="e.g., 10, 50, 100, 500"
-                          className="w-full px-3 py-2 border border-purple-300 dark:border-purple-700 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          disabled={submitting}
-                        />
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          With respect to your sparse model {indexInfo?.sparseModel}
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                          Sparse Values
-                        </label>
-                        <input
-                          type="text"
-                          value={vector.sparse_values}
-                          onChange={(e) => updateVector(index, 'sparse_values', e.target.value)}
-                          placeholder="e.g., 0.8, 0.5, 0.3, 0.1"
-                          className="w-full px-3 py-2 border border-purple-300 dark:border-purple-700 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          disabled={submitting}
-                        />
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          Values at corresponding indices
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Metadata */}
+                {/* ID */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                    Metadata (optional)
+                    Object ID <span className="text-red-500">*</span>
                   </label>
-                  <textarea
-                    value={vector.meta}
-                    onChange={(e) => updateVector(index, 'meta', e.target.value)}
-                    placeholder='e.g., {"text": "document content"}'
-                    rows={2}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                  <input
+                    type="text"
+                    value={obj.id}
+                    onChange={(e) => updateObject(index, { id: e.target.value })}
+                    placeholder="e.g., obj_001"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     disabled={submitting}
                   />
                 </div>
+
+                {/* Per-field inputs */}
+                {fields.map((field) => {
+                  const input = obj.fields[field.name] ?? emptyFieldInput()
+                  return (
+                    <div key={field.name} className="rounded-md border border-slate-200 dark:border-slate-600 p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{field.name}</span>
+                        <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${typeBadge(field.type)}`}>
+                          {typeLabel(field.type)}
+                        </span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500">optional</span>
+                      </div>
+
+                      {field.type === 'sparse' ? (
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Indices</label>
+                            <input
+                              type="text"
+                              value={input.sparseIndices}
+                              onChange={(e) => updateField(index, field.name, { sparseIndices: e.target.value })}
+                              placeholder="e.g., 10, 50, 100"
+                              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                              disabled={submitting}
+                            />
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Model: {sparseModel(field) ?? 'default'}</p>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Values</label>
+                            <input
+                              type="text"
+                              value={input.sparseValues}
+                              onChange={(e) => updateField(index, field.name, { sparseValues: e.target.value })}
+                              placeholder="e.g., 0.8, 0.5, 0.3"
+                              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                              disabled={submitting}
+                            />
+                          </div>
+                        </div>
+                      ) : field.type === 'multi_vector' ? (
+                        <textarea
+                          value={input.value}
+                          onChange={(e) => updateField(index, field.name, { value: e.target.value })}
+                          placeholder={`[[0.1, 0.2, ...], [0.3, 0.4, ...]]  (each vector ${fieldDimension(field) ?? 'n'}d)`}
+                          rows={3}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                          disabled={submitting}
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={input.value}
+                          onChange={(e) => updateField(index, field.name, { value: e.target.value })}
+                          placeholder={`e.g., 0.1, 0.2, 0.3, ... (${fieldDimension(field) ?? 'n'} dimensions)`}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                          disabled={submitting}
+                        />
+                      )}
+                    </div>
+                  )
+                })}
+
+                {/* Metadata */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Metadata (optional)</label>
+                  <textarea
+                    value={obj.meta}
+                    onChange={(e) => updateObject(index, { meta: e.target.value })}
+                    placeholder='e.g., {"name": "Wireless Headphones", "price": 99}'
+                    rows={2}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    disabled={submitting}
+                  />
+                </div>
+
                 {/* Filter */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                    Filters (optional)
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">Filter tags (optional)</label>
                   <textarea
-                    value={vector.filter}
-                    onChange={(e) => updateVector(index, 'filter', e.target.value)}
-                    placeholder='e.g., {"category": "tech", "source": "wiki"}'
+                    value={obj.filter}
+                    onChange={(e) => updateObject(index, { filter: e.target.value })}
+                    placeholder='e.g., {"category": "electronics"}'
                     rows={2}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                     disabled={submitting}
                   />
                 </div>
@@ -340,29 +298,27 @@ export default function VectorInsertPage() {
           ))}
         </div>
 
-        {/* Add More Button */}
         <button
           type="button"
-          onClick={addVector}
+          onClick={addObject}
           disabled={submitting}
           className="mt-4 flex items-center gap-2 px-4 py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors disabled:opacity-50"
         >
           <GoPlus className="w-5 h-5" />
-          Add Another Vector
+          Add Another Object
         </button>
 
-        {/* Action Buttons */}
         <div className="flex gap-3 mt-6 pt-6 border-t border-slate-200 dark:border-slate-600">
           <button
             type="submit"
             disabled={submitting}
             className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
           >
-            {submitting ? 'Inserting...' : `Insert ${vectors.length} Vector${vectors.length > 1 ? 's' : ''}`}
+            {submitting ? 'Inserting...' : `Insert ${objects.length} Object${objects.length > 1 ? 's' : ''}`}
           </button>
           <button
             type="button"
-            onClick={() => router.push(`/indexes/${indexName}`)}
+            onClick={() => router.push(`/collections/${collectionName}`)}
             disabled={submitting}
             className="px-6 py-2 bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors disabled:opacity-50"
           >
@@ -370,26 +326,6 @@ export default function VectorInsertPage() {
           </button>
         </div>
       </form>
-
-      {/* Help Card */}
-      <div className="mt-6 bg-blue-50 dark:bg-slate-600 border border-blue-200 dark:border-slate-500 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-blue-900 dark:text-slate-100 mb-2">
-          {isHybrid ? 'Hybrid Vector Example' : 'Dense Vector Example'}
-        </h3>
-        <div className="bg-slate-900 dark:bg-slate-950 text-slate-100 p-3 rounded-md font-mono text-xs overflow-x-auto">
-          <pre>{isHybrid ? `{
-  "id": "doc_001",
-  "vector": [0.1, 0.2, 0.3, ...],
-  "sparse_indices": [10, 50, 100, 500],
-  "sparse_values": [0.8, 0.5, 0.3, 0.1],
-  "meta": {"text": "document content", "category": "tech"}
-}` : `{
-  "id": "vec_001",
-  "vector": [0.1, 0.2, 0.3, 0.4, ...],
-  "meta": {"text": "document content", "category": "tech"}
-}`}</pre>
-        </div>
-      </div>
     </div>
   )
 }
