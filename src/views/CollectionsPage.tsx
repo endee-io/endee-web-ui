@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { GoPlus, GoArchive } from 'react-icons/go'
 import { api } from '../api/client'
 import type { CollectionSummary } from '../api/client'
-import { typeLabel, typeBadge, fieldSpec, fieldTypes } from '../lib/collectionFields'
 import { useNotification } from '../context/NotificationContext'
 import { useSelectedDatabase } from '../context/SelectedDatabaseContext'
 import { useDbRoute } from '../lib/routes'
@@ -142,27 +141,22 @@ export default function CollectionsPage() {
           {collections.map((collection) => {
             const fields = collection.fields ?? []
             return (
-              <div
+              <Link
                 key={collection.name}
-                className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow"
+                href={path(`collections/${collection.name}`)}
+                className="block bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow"
               >
                 {/* Header row */}
-                <div className="flex justify-between items-start mb-3">
-                  <Link href={path(`collections/${collection.name}`)} className="flex items-center gap-3 flex-wrap">
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-                      {collection.name}
-                    </h3>
-                    {fieldTypes(collection.fields ?? []).map((t) => (
-                      <span
-                        key={t}
-                        className={`px-2 py-0.5 text-xs font-medium rounded-full ${typeBadge(t)}`}
-                      >
-                        {typeLabel(t)}
-                      </span>
-                    ))}
-                  </Link>
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+                    {collection.name}
+                  </h3>
                   <button
-                    onClick={() => openBackupModal(collection.name)}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      openBackupModal(collection.name)
+                    }}
                     className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-600 rounded hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors shrink-0"
                   >
                     <GoArchive className="w-4 h-4" />
@@ -170,44 +164,36 @@ export default function CollectionsPage() {
                   </button>
                 </div>
 
-                {/* Meta line */}
-                <Link href={path(`collections/${collection.name}`)} className="block">
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Created {formatDate(collection.created_at)}
-                    {collection.total_elements != null && (
-                      <> · {collection.total_elements.toLocaleString()} objects</>
-                    )}
-                    {' · '}
-                    {fields.length} {fields.length === 1 ? 'field' : 'fields'}
-                  </p>
-
-                  {/* Per-field breakdown */}
-                  {fields.length > 0 && (
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 mt-4 pt-4 border-t border-slate-100 dark:border-slate-600">
-                      {fields.map((field) => (
-                        <div
-                          key={field.name}
-                          className="rounded-md border border-slate-100 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/40 px-3 py-2"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">
-                              {field.name}
-                            </span>
-                            <span
-                              className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${typeBadge(field.type)}`}
-                            >
-                              {typeLabel(field.type)}
-                            </span>
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            {fieldSpec(field)}
-                          </div>
-                        </div>
-                      ))}
+                {/* Meta table */}
+                <dl className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-600 border-t border-slate-100 dark:border-slate-600 pt-4">
+                    <div className="px-1 first:pl-0">
+                      <dt className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                        Created
+                      </dt>
+                      <dd className="mt-1 text-sm text-slate-700 dark:text-slate-200">
+                        {formatDate(collection.created_at)}
+                      </dd>
                     </div>
-                  )}
-                </Link>
-              </div>
+                    <div className="px-4">
+                      <dt className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                        Objects
+                      </dt>
+                      <dd className="mt-1 text-sm text-slate-700 dark:text-slate-200">
+                        {collection.total_elements != null
+                          ? collection.total_elements.toLocaleString()
+                          : '—'}
+                      </dd>
+                    </div>
+                    <div className="px-4">
+                      <dt className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                        Fields
+                      </dt>
+                      <dd className="mt-1 text-sm text-slate-700 dark:text-slate-200">
+                        {fields.length}
+                      </dd>
+                    </div>
+                  </dl>
+              </Link>
             )
           })}
         </div>

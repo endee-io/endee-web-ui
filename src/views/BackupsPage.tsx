@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { GoPlus, GoTrash, GoSync, GoDownload, GoUpload, GoX } from 'react-icons/go'
+import { api } from '../api/client'
 import { useSelectedDatabase } from '../context/SelectedDatabaseContext'
 import { useNotification } from '../context/NotificationContext'
 import CreateBackupModal from '../components/CreateBackupModal'
@@ -10,18 +11,18 @@ import Notification from '../components/Notification'
 
 interface Backup {
   name: string
-  original_index: string
+  original_collection: string
   timestamp: number
 }
 
 interface ActiveBackup {
   active: boolean
   backup_name?: string
-  index_id?: string
+  collection_id?: string
 }
 
 interface BackupInfo {
-  original_index: string
+  original_collection: string
   params: {
     M: number
     checksum: number
@@ -79,33 +80,22 @@ export default function BackupsPage() {
   const { selectedDatabase } = useSelectedDatabase()
   const { notification, showNotification, clearNotification } = useNotification()
 
-  // Build an internal proxy URL scoped to the selected database.
-  const dbUrl = useCallback(
-    (path: string) => {
-      const sep = path.includes('?') ? '&' : '?'
-      return `/api/backups${path}${sep}db=${encodeURIComponent(selectedDatabase ?? '')}`
-    },
-    [selectedDatabase]
-  )
-
   const loadBackups = useCallback(async () => {
     if (!selectedDatabase) return
     setLoading(true)
     try {
-      const response = await fetch(dbUrl(''), {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
-      })
-      if (!response.ok) {
-        throw new Error('Failed to fetch backups.')
+      const response = await api.listBackups()
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to fetch backups.')
       }
-      const data = await response.json()
+      const data = response.data ?? {}
       const backupList: Backup[] = Object.entries(data).map(([name, info]) => {
-        const backupInfo = info as BackupInfo
+        const bi = info as Partial<BackupInfo> & { original_index?: string }
         return {
           name,
-          original_index: backupInfo.original_index,
-          timestamp: backupInfo.timestamp
+          // v2 renamed index → collection; fall back to the old key just in case.
+          original_collection: bi.original_collection ?? bi.original_index ?? '',
+          timestamp: bi.timestamp ?? 0,
         }
       })
       // Sort by timestamp descending (newest first)
@@ -117,16 +107,14 @@ export default function BackupsPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedDatabase, dbUrl])
+  }, [selectedDatabase])
 
   const loadActiveBackup = useCallback(async () => {
     if (!selectedDatabase) return
     try {
-      const response = await fetch(dbUrl('/active'), {
-        headers: { 'Content-Type': 'application/json' }
-      })
-      if (!response.ok) return
-      const data: ActiveBackup = await response.json()
+      const response = await api.activeBackup()
+      if (!response.success) return
+      const data = (response.data ?? { active: false }) as unknown as ActiveBackup
       if (data.active && data.backup_name) {
         activeBackupNameRef.current = data.backup_name
       }
@@ -135,7 +123,7 @@ export default function BackupsPage() {
     } catch {
       // silently fail
     }
-  }, [selectedDatabase, dbUrl])
+  }, [selectedDatabase])
 
   useEffect(() => {
     if (!selectedDatabase) return
@@ -197,19 +185,13 @@ export default function BackupsPage() {
     setRestoring(true)
     setRestoreError(null)
     try {
-      const response = await fetch(dbUrl(`/${encodeURIComponent(restoreBackupName)}/restore`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target_index_name: restoreTargetIndex.trim() })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to restore backup')
+      const response = await api.restoreBackup(restoreBackupName, restoreTargetIndex.trim())
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to restore backup')
       }
 
       closeRestoreModal()
-      showNotification('success', `Backup "${restoreBackupName}" restored to index "${restoreTargetIndex.trim()}"`)
+      showNotification('success', `Backup "${restoreBackupName}" restored to collection "${restoreTargetIndex.trim()}"`)
     } catch (err) {
       setRestoreError(err instanceof Error ? err.message : 'Failed to restore backup')
     } finally {
@@ -232,13 +214,9 @@ export default function BackupsPage() {
 
     setDeleting(true)
     try {
-      const response = await fetch(dbUrl(`/${encodeURIComponent(deleteBackupName)}`), {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to delete backup')
+      const response = await api.deleteBackup(deleteBackupName)
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to delete backup')
       }
 
       closeDeleteModal()
@@ -259,15 +237,11 @@ export default function BackupsPage() {
     setLoadingInfo(true)
     setShowInfoModal(true)
     try {
-      const response = await fetch(dbUrl(`/${encodeURIComponent(backupName)}/info`), {
-        headers: { 'Content-Type': 'application/json' }
-      })
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to fetch backup info')
+      const response = await api.backupInfo(backupName)
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to fetch backup info')
       }
-      const data: BackupInfo = await response.json()
-      setBackupInfo(data)
+      setBackupInfo(response.data as unknown as BackupInfo)
     } catch (err) {
       setInfoError(err instanceof Error ? err.message : 'Failed to load backup info')
     } finally {
@@ -286,14 +260,13 @@ export default function BackupsPage() {
     try {
       // Resolve the signed backend download URL via the proxy (token injected
       // server-side), then trigger the download in a hidden iframe.
-      const response = await fetch(dbUrl(`/${encodeURIComponent(backupName)}/download`))
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok || !data.url) {
-        throw new Error(data.error || 'Failed to start download')
+      const response = await api.downloadBackupUrl(backupName)
+      if (!response.success || !response.data?.url) {
+        throw new Error(response.error || 'Failed to start download')
       }
       const iframe = document.createElement('iframe')
       iframe.style.display = 'none'
-      iframe.src = data.url
+      iframe.src = response.data.url
       document.body.appendChild(iframe)
       setTimeout(() => { document.body.removeChild(iframe) }, 60000)
       showNotification('success', `Downloading backup "${backupName}"`)
@@ -411,7 +384,7 @@ export default function BackupsPage() {
                   Backup Name
                 </th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Original Index
+                  Original Collection
                 </th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Created At
@@ -431,7 +404,7 @@ export default function BackupsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-sm text-slate-600 dark:text-slate-300">
-                      {backup.original_index}
+                      {backup.original_collection}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -520,8 +493,8 @@ export default function BackupsPage() {
                   {/* Primary Info */}
                   <div className="grid grid-cols-3 gap-4">
                     <div className="col-span-1">
-                      <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Source Index</p>
-                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{backupInfo.original_index}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Source Collection</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{backupInfo.original_collection}</p>
                     </div>
                     <div className="col-span-1">
                       <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Created</p>
@@ -606,7 +579,7 @@ export default function BackupsPage() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Target Index Name
+                Target Collection Name
               </label>
               <input
                 type="text"
@@ -622,7 +595,7 @@ export default function BackupsPage() {
                     setRestoreIndexNameError('Only alphanumeric characters and underscores are allowed.')
                   }
                 }}
-                placeholder="e.g., my_restored_index"
+                placeholder="e.g., my_restored_collection"
                 className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${restoreIndexNameError ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
               />
               {restoreIndexNameError ? (

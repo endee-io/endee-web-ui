@@ -113,7 +113,7 @@ export default function VectorGetPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => router.push(path(`collections/`))}
+          onClick={() => router.push(path(`collections/${encodeURIComponent(collectionName)}`))}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />

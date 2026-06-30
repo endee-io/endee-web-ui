@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { GoArrowLeft, GoTrash, GoSearch, GoPlus, GoPackage, GoArchive, GoKebabHorizontal } from 'react-icons/go'
+import { GoArrowLeft, GoTrash, GoSearch, GoPlus, GoPackage, GoArchive, GoKebabHorizontal, GoSync } from 'react-icons/go'
 import { api } from '../api/client'
 import type { CollectionSummary } from '../api/client'
 import { typeLabel, typeBadge, fieldTypes, sparseModel } from '../lib/collectionFields'
 import { useNotification } from '../context/NotificationContext'
 import CreateBackupModal from '../components/CreateBackupModal'
+import RebuildModal from '../components/RebuildModal'
 import Notification from '../components/Notification'
 import { useDbRoute } from '../lib/routes'
 
@@ -23,6 +24,7 @@ export default function CollectionDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showBackupModal, setShowBackupModal] = useState(false)
+  const [showRebuildModal, setShowRebuildModal] = useState(false)
   const [showActionsMenu, setShowActionsMenu] = useState(false)
 
   const actionsMenuRef = useRef<HTMLDivElement>(null)
@@ -154,6 +156,13 @@ export default function CollectionDetailPage() {
                   <GoArchive className="w-4 h-4" />
                   Create Backup
                 </button>
+                <button
+                  onClick={() => { setShowActionsMenu(false); setShowRebuildModal(true) }}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <GoSync className="w-4 h-4" />
+                  Rebuild
+                </button>
                 <div className="border-t border-slate-200 dark:border-slate-600" />
                 <button
                   onClick={() => { setShowActionsMenu(false); setShowDeleteConfirm(true) }}
@@ -265,7 +274,7 @@ export default function CollectionDetailPage() {
       <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Operations</h2>
       <div className="grid md:grid-cols-3 gap-4">
         <Link
-          href={path(`collections//search`)}
+          href={path(`collections/${encodeURIComponent(collectionName)}/search`)}
           className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow flex items-start gap-4"
         >
           <div className="p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
@@ -280,7 +289,7 @@ export default function CollectionDetailPage() {
         </Link>
 
         <Link
-          href={path(`collections//insert`)}
+          href={path(`collections/${encodeURIComponent(collectionName)}/insert`)}
           className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow flex items-start gap-4"
         >
           <div className="p-3 bg-green-100 dark:bg-green-900/50 rounded-lg">
@@ -295,7 +304,7 @@ export default function CollectionDetailPage() {
         </Link>
 
         <Link
-          href={path(`collections//vectors`)}
+          href={path(`collections/${encodeURIComponent(collectionName)}/vectors`)}
           className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow flex items-start gap-4"
         >
           <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
@@ -341,6 +350,15 @@ export default function CollectionDetailPage() {
       {/* Backup Modal */}
       {showBackupModal && (
         <CreateBackupModal closeBackupModal={() => setShowBackupModal(false)} collectionName={collectionName} />
+      )}
+
+      {/* Rebuild Modal */}
+      {showRebuildModal && (
+        <RebuildModal
+          closeModal={() => setShowRebuildModal(false)}
+          collectionName={collectionName}
+          fields={fields}
+        />
       )}
     </div>
   )

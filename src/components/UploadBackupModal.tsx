@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { BarLoader } from "react-spinners";
+import { getActiveServer } from "../api/client";
 import { useSelectedDatabase } from "../context/SelectedDatabaseContext";
 import { useNotification } from "../context/NotificationContext";
 import Notification from "./Notification";
@@ -40,10 +41,19 @@ export default function UploadBackupModal(params: UploadBackupParams) {
             const formData = new FormData()
             formData.append('backup', selectedFile)
 
+            // The proxy route reads the active server's URL + token off these
+            // headers (the api client attaches them automatically, but this
+            // multipart upload bypasses it, so set them by hand).
+            const server = getActiveServer()
+            const headers: Record<string, string> = server
+                ? { 'x-endee-url': server.url, 'x-endee-token': server.token }
+                : {}
+
             const response = await fetch(
                 `/api/backups/upload?db=${encodeURIComponent(selectedDatabase ?? '')}`,
                 {
                     method: 'POST',
+                    headers,
                     body: formData
                 }
             )
