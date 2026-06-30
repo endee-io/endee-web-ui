@@ -17,10 +17,10 @@ export default function WelcomePage() {
                     <h1 className="text-4xl font-bold text-slate-800 dark:text-slate-100">Endee</h1>
                 </div>
                 <p className="text-lg text-slate-600 dark:text-slate-300 mb-2">
-                    High Performance Vector Database
+                    High Performance Multi-Field Vector Database
                 </p>
                 <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xl mx-auto">
-                    Built for scale, efficiency and speed.
+                    Dense, sparse, and multi-vector fields in a single collection — built for scale, efficiency and speed.
                 </p>
             </div>
 
@@ -32,10 +32,10 @@ export default function WelcomePage() {
                     <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-2">
                             <span className="w-6 h-6 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-sm font-semibold">1</span>
-                            <h3 className="font-medium text-slate-800 dark:text-slate-100">Create an Index</h3>
+                            <h3 className="font-medium text-slate-800 dark:text-slate-100">Create a Collection</h3>
                         </div>
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                            Define your vector dimensions and choose a distance metric (cosine, euclidean, or dot product).
+                            Define one or more fields — dense vector, sparse, or multi-vector — each with its own dimensions and distance metric.
                         </p>
                     </div>
 
@@ -43,10 +43,10 @@ export default function WelcomePage() {
                     <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-2">
                             <span className="w-6 h-6 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-sm font-semibold">2</span>
-                            <h3 className="font-medium text-slate-800 dark:text-slate-100">Insert Vectors</h3>
+                            <h3 className="font-medium text-slate-800 dark:text-slate-100">Insert Objects</h3>
                         </div>
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                            Add your embedding vectors with optional metadata and filters for advanced querying.
+                            Upsert objects carrying values for each field, plus optional metadata filters for narrowing queries.
                         </p>
                     </div>
 
@@ -54,10 +54,10 @@ export default function WelcomePage() {
                     <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-2">
                             <span className="w-6 h-6 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-sm font-semibold">3</span>
-                            <h3 className="font-medium text-slate-800 dark:text-slate-100">Search</h3>
+                            <h3 className="font-medium text-slate-800 dark:text-slate-100">Search & Rerank</h3>
                         </div>
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                            Find similar vectors using fast approximate nearest neighbor search with optional filters.
+                            Query each field for nearest neighbors, then fuse the per-field results with RRF rerank for hybrid search.
                         </p>
                     </div>
                 </div>
@@ -84,17 +84,17 @@ export default function WelcomePage() {
                                 <GoArrowRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
                             </div>
                             <p className="text-slate-600 dark:text-slate-300 mt-1 mb-3">
-                                Manage your vector indexes directly from this UI - no code required.
+                                Manage your collections directly from this UI - no code required.
                             </p>
                             <div className="flex flex-wrap gap-2">
                                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs rounded">
-                                    <GoPlus className="w-3 h-3" /> Create indexes
+                                    <GoPlus className="w-3 h-3" /> Create collections
                                 </span>
                                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs rounded">
-                                    <GoZap className="w-3 h-3" /> Insert vectors
+                                    <GoZap className="w-3 h-3" /> Insert objects
                                 </span>
                                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs rounded">
-                                    <GoSearch className="w-3 h-3" /> Search & query
+                                    <GoSearch className="w-3 h-3" /> Search & rerank
                                 </span>
                                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs rounded">
                                     <GoArchive className="w-3 h-3" /> Backup & restore
@@ -115,11 +115,11 @@ export default function WelcomePage() {
                                 Integrate with SDKs
                             </h3>
                             <p className="text-slate-600 dark:text-slate-300 mt-1 mb-3">
-                                Build production-grade applications with ready-to-use SDK examples for Python, TypeScript, Java, and Go with complete support for every feature, including hybrid search.
+                                Build production-grade applications with ready-to-use SDK examples for Python and TypeScript complete support for every feature, including hybrid search.
                             </p>
                             <div className="flex gap-3 mb-4">
                                 <a
-                                    href="https://docs.endee.io/quick-start"
+                                    href="https://docs.endee.io/v2/concepts/indexes"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="px-4 py-2 text-sm font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 rounded-md hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
@@ -151,7 +151,7 @@ export default function WelcomePage() {
                                 Learn by doing with step-by-step interactive examples. Execute real API calls and see results instantly.
                             </p>
                             <div className="text-sm text-slate-500 dark:text-slate-400">
-                                Covers: Index creation • Vector insertion • Similarity search • Filtered queries • Backup & restore
+                                Covers: Collection creation • Object insertion • Hybrid search & rerank • Filtered queries • Backup & restore
                             </div>
                         </div>
                     </div>
@@ -165,15 +165,15 @@ export default function WelcomePage() {
                     <div className="flex gap-3">
                         <span className="text-blue-500">•</span>
                         <div>
-                            <span className="font-medium text-slate-700 dark:text-slate-200">Dense & Hybrid Search</span>
-                            <p className="text-slate-500 dark:text-slate-400">Combine dense vectors with sparse vectors for better retrieval accuracy.</p>
+                            <span className="font-medium text-slate-700 dark:text-slate-200">Multi-Field Collections</span>
+                            <p className="text-slate-500 dark:text-slate-400">Combine dense, sparse, and multi-vector fields in one collection and fuse results with RRF rerank.</p>
                         </div>
                     </div>
                     <div className="flex gap-3">
                         <span className="text-blue-500">•</span>
                         <div>
                             <span className="font-medium text-slate-700 dark:text-slate-200">Metadata Filtering</span>
-                            <p className="text-slate-500 dark:text-slate-400">Filter results by metadata using $eq, $in, and $range operators.</p>
+                            <p className="text-slate-500 dark:text-slate-400">Filter results by metadata using $eq, $gt, $gte, $lt, $lte, $in, and $range operators.</p>
                         </div>
                     </div>
                     <div className="flex gap-3">
@@ -194,7 +194,7 @@ export default function WelcomePage() {
                         <span className="text-blue-500">•</span>
                         <div>
                             <span className="font-medium text-slate-700 dark:text-slate-200">Backup & Restore</span>
-                            <p className="text-slate-500 dark:text-slate-400">Create backups of your indexes and restore them anytime.</p>
+                            <p className="text-slate-500 dark:text-slate-400">Create backups of your collections and restore them anytime.</p>
                         </div>
                     </div>
                 </div>
