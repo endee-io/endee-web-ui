@@ -5,6 +5,7 @@ import { BarLoader } from "react-spinners";
 import { api } from "../api/client";
 import type { CollectionSummary } from "../api/client";
 import { useRouter } from 'next/navigation'
+import { useDbRoute } from "../lib/routes";
 import Notification from "./Notification";
 
 type CreateBackupParams = {
@@ -28,6 +29,7 @@ export default function CreateBackupModal(params: CreateBackupParams) {
     const [loadingCollections, setLoadingCollections] = useState(false)
 
     const router = useRouter();
+    const { path } = useDbRoute();
 
     useEffect(() => {
         if (params.collectionName) {
@@ -61,7 +63,7 @@ export default function CreateBackupModal(params: CreateBackupParams) {
                 throw new Error(response.error || 'Failed to create backup')
             }
             params.closeBackupModal()
-            router.push("/backups")
+            router.push(path("backups"))
         } catch (err) {
             setBackupError(err instanceof Error ? err.message : 'Failed to create backup')
         } finally {

@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   try {
     const db = requireDatabase(request)
     const formData = await request.formData()
-    const upstream = await backupFetch(db, "/backups/upload", {
+    const upstream = await backupFetch(request, db, "/backups/upload", {
       method: "POST",
       body: formData,
     })

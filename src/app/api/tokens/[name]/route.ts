@@ -12,7 +12,7 @@ export async function DELETE(
   try {
     const db = requireDatabase(request)
     const { name } = await params
-    const result = await getImpersonatedClient(db).deleteMyToken(name)
+    const result = await getImpersonatedClient(request, db).deleteMyToken(name)
     return NextResponse.json(result)
   } catch (error) {
     return errorResponse(error)

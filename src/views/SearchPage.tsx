@@ -20,6 +20,7 @@ import {
 } from '../lib/collectionFields'
 import Tooltip from '../components/Tooltip'
 import Notification from '../components/Notification'
+import { useDbRoute } from '../lib/routes'
 
 interface FieldDraft {
   enabled: boolean
@@ -43,6 +44,7 @@ export default function SearchPage() {
   const params = useParams()
   const collectionName = params?.collectionName as string
   const router = useRouter()
+  const { path } = useDbRoute()
 
   const [collection, setCollection] = useState<CollectionSummary | null>(null)
   const [loadingCollection, setLoadingCollection] = useState(true)
@@ -192,7 +194,7 @@ export default function SearchPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => router.push(`/collections/${collectionName}`)}
+          onClick={() => router.push(path(`collections/`))}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />

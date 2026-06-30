@@ -8,6 +8,7 @@ import type { FieldDefinition, FieldType, Precision, SpaceType } from '../api/cl
 import { typeLabel, typeBadge } from '../lib/collectionFields'
 import Tooltip from '../components/Tooltip'
 import Notification from '../components/Notification'
+import { useDbRoute } from '../lib/routes'
 
 interface FieldRow {
   name: string
@@ -46,6 +47,7 @@ export default function CreateCollectionPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const { path } = useDbRoute()
 
   const nameValid = isNameValid(name)
 
@@ -119,7 +121,7 @@ export default function CreateCollectionPage() {
       if (!response.success) {
         throw new Error(response.error || 'Failed to create collection')
       }
-      router.push('/collections')
+      router.push(path('collections'))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create collection')
     } finally {
@@ -132,7 +134,7 @@ export default function CreateCollectionPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => router.push('/collections')}
+          onClick={() => router.push(path('collections'))}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />
@@ -401,7 +403,7 @@ export default function CreateCollectionPage() {
             </button>
             <button
               type="button"
-              onClick={() => router.push('/collections')}
+              onClick={() => router.push(path('collections'))}
               disabled={submitting}
               className="px-6 py-2 bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >

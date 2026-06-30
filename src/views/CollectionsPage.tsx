@@ -9,6 +9,7 @@ import type { CollectionSummary } from '../api/client'
 import { typeLabel, typeBadge, fieldSpec, fieldTypes } from '../lib/collectionFields'
 import { useNotification } from '../context/NotificationContext'
 import { useSelectedDatabase } from '../context/SelectedDatabaseContext'
+import { useDbRoute } from '../lib/routes'
 import CreateBackupModalFromCollection from '../components/CreateBackupModal'
 import Notification from '../components/Notification'
 
@@ -17,6 +18,7 @@ export default function CollectionsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const { path } = useDbRoute()
 
   // Backup modal state
   const [showBackupModal, setShowBackupModal] = useState(false)
@@ -81,7 +83,7 @@ export default function CollectionsPage() {
 
         {selectedDatabase && !loading && !error && collections.length !== 0 && (
           <button
-            onClick={() => router.push('/collections/create')}
+            onClick={() => router.push(path('collections/create'))}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             <GoPlus className="w-5 h-5" />
@@ -126,7 +128,7 @@ export default function CollectionsPage() {
         <div className="text-center py-12">
           <div className="text-slate-600 dark:text-slate-300 mb-4">No collections found</div>
           <button
-            onClick={() => router.push('/collections/create')}
+            onClick={() => router.push(path('collections/create'))}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             Create your first collection
@@ -146,7 +148,7 @@ export default function CollectionsPage() {
               >
                 {/* Header row */}
                 <div className="flex justify-between items-start mb-3">
-                  <Link href={`/collections/${collection.name}`} className="flex items-center gap-3 flex-wrap">
+                  <Link href={path(`collections/${collection.name}`)} className="flex items-center gap-3 flex-wrap">
                     <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
                       {collection.name}
                     </h3>
@@ -169,7 +171,7 @@ export default function CollectionsPage() {
                 </div>
 
                 {/* Meta line */}
-                <Link href={`/collections/${collection.name}`} className="block">
+                <Link href={path(`collections/${collection.name}`)} className="block">
                   <p className="text-sm text-slate-500 dark:text-slate-400">
                     Created {formatDate(collection.created_at)}
                     {collection.total_elements != null && (

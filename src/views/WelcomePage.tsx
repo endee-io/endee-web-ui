@@ -2,9 +2,11 @@
 
 import { useRouter } from 'next/navigation'
 import { GoDatabase, GoCode, GoBook, GoArrowRight, GoSearch, GoPlus, GoZap, GoArchive } from 'react-icons/go'
+import { useDbRoute } from '../lib/routes'
 
 export default function WelcomePage() {
     const router = useRouter()
+    const { path } = useDbRoute()
 
     return (
         <div className="max-w-4xl mx-auto">
@@ -67,7 +69,7 @@ export default function WelcomePage() {
 
                 {/* Dashboard Option */}
                 <div
-                    onClick={() => router.push('/indexes')}
+                    onClick={() => router.push(path('collections'))}
                     className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer group"
                 >
                     <div className="flex items-start gap-4">
@@ -131,7 +133,7 @@ export default function WelcomePage() {
 
                 {/* Tutorials Option */}
                 <div
-                    onClick={() => router.push('/tutorials')}
+                    onClick={() => router.push(path('tutorials'))}
                     className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md hover:border-purple-300 dark:hover:border-purple-600 transition-all cursor-pointer group"
                 >
                     <div className="flex items-start gap-4">

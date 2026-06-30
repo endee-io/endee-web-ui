@@ -15,7 +15,7 @@ export async function POST(
     const db = requireDatabase(request)
     const { name } = await params
     const { fields } = (await request.json()) as { fields: RebuildFieldSpec[] }
-    const collection = await getImpersonatedClient(db).getCollection(name)
+    const collection = await getImpersonatedClient(request, db).getCollection(name)
     const result = await collection.rebuild(fields)
     return NextResponse.json(result)
   } catch (error) {

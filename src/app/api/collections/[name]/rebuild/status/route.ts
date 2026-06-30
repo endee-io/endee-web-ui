@@ -12,7 +12,7 @@ export async function GET(
   try {
     const db = requireDatabase(request)
     const { name } = await params
-    const collection = await getImpersonatedClient(db).getCollection(name)
+    const collection = await getImpersonatedClient(request, db).getCollection(name)
     const result = await collection.rebuildStatus()
     return NextResponse.json(result)
   } catch (error) {

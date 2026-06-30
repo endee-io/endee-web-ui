@@ -14,7 +14,7 @@ export async function POST(
     const db = requireDatabase(request)
     const { name } = await params
     const { objects } = (await request.json()) as { objects: ObjectInput[] }
-    const collection = await getImpersonatedClient(db).getCollection(name)
+    const collection = await getImpersonatedClient(request, db).getCollection(name)
     const result = await collection.upsert(objects)
     return NextResponse.json(result)
   } catch (error) {
@@ -37,7 +37,7 @@ export async function DELETE(
     if (!filter) {
       return NextResponse.json({ error: "filter is required" }, { status: 400 })
     }
-    const collection = await getImpersonatedClient(db).getCollection(name)
+    const collection = await getImpersonatedClient(request, db).getCollection(name)
     const result = await collection.deleteByFilter(filter)
     return NextResponse.json(result)
   } catch (error) {

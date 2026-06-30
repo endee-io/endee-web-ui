@@ -30,3 +30,6 @@ yarn-error.log*
 *.tsbuildinfo
 
 CLAUDE.md
+
+# local server config (use src/config/servers.example.json as template)
+src/config/servers.json

@@ -14,9 +14,9 @@ import { errorResponse } from "@/lib/apiRoute"
 // This route depends on request-time env/secrets; never statically cache it.
 export const dynamic = "force-dynamic"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const databases = await getAdminClient().listDatabases()
+    const databases = await getAdminClient(request).listDatabases()
     return NextResponse.json({ databases })
   } catch (error) {
     return errorResponse(error)
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     if (!db_name || !db_name.trim()) {
       return NextResponse.json({ error: "db_name is required" }, { status: 400 })
     }
-    const result = await getAdminClient().createDatabase(db_name.trim(), db_type)
+    const result = await getAdminClient(request).createDatabase(db_name.trim(), db_type)
     return NextResponse.json(result)
   } catch (error) {
     return errorResponse(error)

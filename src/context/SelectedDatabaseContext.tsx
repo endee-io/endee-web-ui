@@ -44,7 +44,9 @@ export const useSelectedDatabaseStore = create<SelectedDatabaseState>((set, get)
       )
 
       // Resolve the active selection: keep the current one if still valid,
-      // otherwise restore the persisted value, otherwise auto-select the first.
+      // otherwise restore the persisted value. Do NOT auto-select the first —
+      // the database is chosen explicitly via the picker, and the dashboard
+      // guard redirects there when nothing valid is selected.
       const names = list.map((d) => d.db_name)
       const prev = get().selectedDatabase
       const stored =
@@ -52,7 +54,6 @@ export const useSelectedDatabaseStore = create<SelectedDatabaseState>((set, get)
       const next =
         (prev && names.includes(prev) && prev) ||
         (stored && names.includes(stored) && stored) ||
-        list[0]?.db_name ||
         null
       if (next && typeof window !== 'undefined') {
         localStorage.setItem(SELECTED_DB_KEY, next)

@@ -15,6 +15,7 @@ export async function GET(
     const db = requireDatabase(request)
     const { backupName } = await params
     const url = backendUrlWithToken(
+      request,
       db,
       `/backups/${encodeURIComponent(backupName)}/download`
     )

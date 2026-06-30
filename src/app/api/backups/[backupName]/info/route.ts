@@ -12,7 +12,7 @@ export async function GET(
   try {
     const db = requireDatabase(request)
     const { backupName } = await params
-    const result = await getImpersonatedClient(db).backupInfo(backupName)
+    const result = await getImpersonatedClient(request, db).backupInfo(backupName)
     return NextResponse.json(result)
   } catch (error) {
     return errorResponse(error)

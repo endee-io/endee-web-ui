@@ -17,6 +17,13 @@ interface SelectProps {
   /** Optional leading icon rendered inside the trigger. */
   icon?: React.ReactNode
   className?: string
+  /** Optional header shown at the top of the dropdown. */
+  header?: React.ReactNode
+  /** Optional action rendered as the last item; clicking it closes the dropdown. */
+  action?: {
+    label: React.ReactNode
+    onSelect: () => void
+  }
 }
 
 export default function Select({
@@ -27,6 +34,8 @@ export default function Select({
   placeholder = 'Select…',
   icon,
   className = '',
+  header,
+  action,
 }: SelectProps) {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
@@ -115,7 +124,7 @@ export default function Select({
         disabled={disabled}
         onClick={() => !disabled && setOpen((o) => !o)}
         onKeyDown={onKeyDown}
-        className="flex w-full items-center gap-2 rounded-md border border-border  px-3 py-1.5 text-sm text-slate-700 transition-colors hover:border-slate-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600"
+        className="flex max-w-64 items-center gap-2 rounded-md  px-3 py-1.5 text-sm text-slate-700 transition-colors hover:border-slate-300 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600"
       >
         {icon && <span className="shrink-0">{icon}</span>}
         <span className={`flex-1 truncate text-left ${selected ? '' : 'text-slate-400 dark:text-slate-500'}`}>
@@ -132,8 +141,16 @@ export default function Select({
           id={listId}
           role="listbox"
           tabIndex={-1}
-          className="absolute z-50 mt-1 max-h-60 w-full min-w-max overflow-auto rounded-md border border-border bg-card-background py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
+          className="absolute z-50 mt-1 p-2 max-h-60 w-full min-w-56 overflow-auto rounded-md border border-border bg-background py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
         >
+          {header && (
+            <li
+              role="presentation"
+              className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500"
+            >
+              {header}
+            </li>
+          )}
           {options.length === 0 && (
             <li className="px-3 py-2 text-sm text-slate-400 dark:text-slate-500">No options</li>
           )}
@@ -147,7 +164,7 @@ export default function Select({
                 aria-selected={isSelected}
                 onMouseEnter={() => setActiveIndex(i)}
                 onClick={() => commit(i)}
-                className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm ${
+                className={`flex cursor-pointer items-center justify-between font-medium gap-2 px-2 rounded my-1 py-2 text-sm ${
                   isActive
                     ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200'
                     : 'text-slate-700 dark:text-slate-200'
@@ -158,6 +175,19 @@ export default function Select({
               </li>
             )
           })}
+          {action && (
+            <li
+              role="option"
+              aria-selected={false}
+              onClick={() => {
+                setOpen(false)
+                action.onSelect()
+              }}
+              className="mt-1 flex cursor-pointer items-center gap-2 border-t border-border px-2 py-3 text-sm font-light hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-900/30"
+            >
+              {action.label}
+            </li>
+          )}
         </ul>
       )}
     </div>

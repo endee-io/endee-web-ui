@@ -77,6 +77,37 @@ export const PRECISIONS: Precision[] = [
 export const SPACE_TYPES: SpaceType[] = ["cosine", "l2", "ip"]
 
 // ============================================================
+// ACTIVE SERVER
+// ============================================================
+
+export interface ActiveServer {
+  url: string
+  token: string
+}
+
+let activeServer: ActiveServer | null = null
+
+/**
+ * Set the Endee server all subsequent proxied calls target. The proxy routes
+ * read these off the `x-endee-url` / `x-endee-token` request headers, so the
+ * root token never lives in server env — it travels per request from the
+ * browser's selected server. Driven by the servers store.
+ */
+export function setActiveServer(server: ActiveServer | null): void {
+  activeServer = server
+}
+
+/** The server API calls currently target (or null). */
+export function getActiveServer(): ActiveServer | null {
+  return activeServer
+}
+
+function serverHeaders(): Record<string, string> {
+  if (!activeServer) return {}
+  return { "x-endee-url": activeServer.url, "x-endee-token": activeServer.token }
+}
+
+// ============================================================
 // SELECTED DATABASE
 // ============================================================
 
@@ -209,7 +240,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 async function rawRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: { "Content-Type": "application/json", ...serverHeaders(), ...init?.headers },
     cache: "no-store",
   })
   const payload = await response.json().catch(() => ({}))

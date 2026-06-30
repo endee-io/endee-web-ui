@@ -7,6 +7,7 @@ import { api } from '../api/client'
 import type { CollectionSummary, FieldDefinition, ObjectInput, FieldValue } from '../api/client'
 import { typeLabel, typeBadge, fieldDimension, sparseModel, parseFieldValue } from '../lib/collectionFields'
 import Notification from '../components/Notification'
+import { useDbRoute } from '../lib/routes'
 
 interface FieldInput {
   value: string
@@ -39,6 +40,7 @@ export default function VectorInsertPage() {
   const params = useParams()
   const collectionName = params?.collectionName as string
   const router = useRouter()
+  const { path } = useDbRoute()
 
   const [collection, setCollection] = useState<CollectionSummary | null>(null)
   const [loadingCollection, setLoadingCollection] = useState(true)
@@ -155,7 +157,7 @@ export default function VectorInsertPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => router.push(`/collections/${collectionName}`)}
+          onClick={() => router.push(path(`collections/`))}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />
@@ -318,7 +320,7 @@ export default function VectorInsertPage() {
           </button>
           <button
             type="button"
-            onClick={() => router.push(`/collections/${collectionName}`)}
+            onClick={() => router.push(path(`collections/`))}
             disabled={submitting}
             className="px-6 py-2 bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors disabled:opacity-50"
           >

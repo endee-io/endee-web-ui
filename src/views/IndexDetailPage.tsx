@@ -10,11 +10,13 @@ import { typeLabel, typeBadge, fieldTypes, sparseModel } from '../lib/collection
 import { useNotification } from '../context/NotificationContext'
 import CreateBackupModal from '../components/CreateBackupModal'
 import Notification from '../components/Notification'
+import { useDbRoute } from '../lib/routes'
 
 export default function CollectionDetailPage() {
   const params = useParams()
   const collectionName = params?.collectionName as string
   const router = useRouter()
+  const { path } = useDbRoute()
   const [collection, setCollection] = useState<CollectionSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -68,7 +70,7 @@ export default function CollectionDetailPage() {
       if (!response.success) {
         throw new Error(response.error || 'Failed to delete collection')
       }
-      router.push('/collections')
+      router.push(path('collections'))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete collection')
       setDeleting(false)
@@ -99,7 +101,7 @@ export default function CollectionDetailPage() {
     return (
       <div className="p-6">
         <button
-          onClick={() => router.push('/collections')}
+          onClick={() => router.push(path('collections'))}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />
@@ -117,7 +119,7 @@ export default function CollectionDetailPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => router.push('/collections')}
+          onClick={() => router.push(path('collections'))}
           className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
         >
           <GoArrowLeft className="w-5 h-5" />
@@ -263,7 +265,7 @@ export default function CollectionDetailPage() {
       <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Operations</h2>
       <div className="grid md:grid-cols-3 gap-4">
         <Link
-          href={`/collections/${collectionName}/search`}
+          href={path(`collections//search`)}
           className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow flex items-start gap-4"
         >
           <div className="p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
@@ -278,7 +280,7 @@ export default function CollectionDetailPage() {
         </Link>
 
         <Link
-          href={`/collections/${collectionName}/insert`}
+          href={path(`collections//insert`)}
           className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow flex items-start gap-4"
         >
           <div className="p-3 bg-green-100 dark:bg-green-900/50 rounded-lg">
@@ -293,7 +295,7 @@ export default function CollectionDetailPage() {
         </Link>
 
         <Link
-          href={`/collections/${collectionName}/vectors`}
+          href={path(`collections//vectors`)}
           className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow flex items-start gap-4"
         >
           <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-lg">

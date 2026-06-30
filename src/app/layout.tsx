@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "../App.css";
-import AppShell from "./AppShell";
+import AppBootstrap from "@/components/AppBootstrap";
+import TopBar from "@/components/TopBar";
 
 export const metadata: Metadata = {
   title: "Endee - Vector Database",
@@ -22,7 +23,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AppShell>{children}</AppShell>
+        <AppBootstrap>
+          <div className="flex flex-col h-screen bg-card-background dark:bg-slate-800">
+            <TopBar />
+            {children}
+          </div>
+        </AppBootstrap>
       </body>
     </html>
   );

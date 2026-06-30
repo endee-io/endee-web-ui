@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
 export async function GET(request: Request) {
   try {
     const db = requireDatabase(request)
-    const collections = await getImpersonatedClient(db).listCollections()
+    const collections = await getImpersonatedClient(request, db).listCollections()
     return NextResponse.json({ collections })
   } catch (error) {
     return errorResponse(error)
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       name: string
       fields: FieldDefinition[]
     }
-    await getImpersonatedClient(db).createCollection({ name, fields })
+    await getImpersonatedClient(request, db).createCollection({ name, fields })
     return NextResponse.json({ success: true })
   } catch (error) {
     return errorResponse(error)

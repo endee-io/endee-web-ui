@@ -1,10 +1,11 @@
 /**
  * Server-only helpers for talking to the Endee backend (v2 Collections API).
  *
- * The browser never holds a token. Next route handlers import this module to
- * build either:
+ * The browser may be connected to several servers. Each proxied request carries
+ * the active server's base URL and root token in the `x-endee-url` /
+ * `x-endee-token` headers; these helpers read them and build either:
  *   - a per-database root-impersonation token `root/<database>:<ROOT_TOKEN>`
- *     (data-plane: collections / objects / search / backups), or
+ *     (data-plane: collections / objects / search / backups / tokens), or
  *   - a bare root client for control-plane admin calls (`/admin/dbs`).
  *
  * This module must NEVER be imported from a client component.
@@ -14,49 +15,51 @@ import { Endee } from "endee"
 
 export class ConfigError extends Error {}
 
-/** Backend base URL for the v2 API, resolved server-side. */
-export function getServerApiBaseUrl(): string {
-  const raw =
-    process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_ENDEE_URL || ""
-  const base = raw.replace(/\/+$/, "")
-  if (!base) {
-    throw new ConfigError("Server URL is not configured (NEXT_PUBLIC_SERVER_URL).")
-  }
-  // The env value may or may not already include the /api/v2 suffix.
-  return /\/api\/v\d+$/.test(base) ? base : `${base}/api/v2`
+interface ServerConfig {
+  url: string
+  token: string
 }
 
-function getRootToken(): string {
-  const token = process.env.ROOT_TOKEN
-  if (!token) {
-    throw new ConfigError("Admin token is not configured (ROOT_TOKEN).")
+/** Read the active server's base URL + root token from the request headers. */
+export function getServerConfig(request: Request): ServerConfig {
+  const rawUrl = request.headers.get("x-endee-url")?.trim() || ""
+  const token = request.headers.get("x-endee-token")?.trim() || ""
+  if (!rawUrl) {
+    throw new ConfigError("No server selected (missing server URL).")
   }
-  return token
+  if (!token) {
+    throw new ConfigError("No server token provided.")
+  }
+  // Be lenient: accept a bare host and append /api/v2.
+  const base = rawUrl.replace(/\/+$/, "")
+  const url = /\/api\/v\d+$/.test(base) ? base : `${base}/api/v2`
+  return { url, token }
 }
 
 /** Build the root-impersonation auth value for a database: `root/<db>:<token>`. */
-export function buildImpersonationToken(database: string): string {
-  return `root/${database}:${getRootToken()}`
+export function buildImpersonationToken(database: string, token: string): string {
+  return `root/${database}:${token}`
 }
 
 /**
  * An `endee` SDK client scoped to a single database via impersonation. Used for
- * all data-plane work (collections, objects, search, backups).
+ * all data-plane work (collections, objects, search, backups, tokens).
  */
-export function getImpersonatedClient(database: string): Endee {
-  const client = new Endee(buildImpersonationToken(database))
-  client.setBaseUrl(getServerApiBaseUrl())
+export function getImpersonatedClient(request: Request, database: string): Endee {
+  const { url, token } = getServerConfig(request)
+  const client = new Endee(buildImpersonationToken(database, token))
+  client.setBaseUrl(url)
   return client
 }
 
 /**
- * A bare root client for control-plane admin operations (e.g. listing the
- * server's databases via `/admin/dbs`). The root token cannot run data ops
- * directly — use `getImpersonatedClient` for those.
+ * A bare root client for control-plane admin operations (e.g. listing or
+ * creating the server's databases via `/admin/dbs`).
  */
-export function getAdminClient(): Endee {
-  const client = new Endee(getRootToken())
-  client.setBaseUrl(getServerApiBaseUrl())
+export function getAdminClient(request: Request): Endee {
+  const { url, token } = getServerConfig(request)
+  const client = new Endee(token)
+  client.setBaseUrl(url)
   return client
 }
 
@@ -71,21 +74,21 @@ export function requireDatabase(request: Request): string {
 
 /**
  * Fetch a backend endpoint with the impersonation auth header injected. Retained
- * only for the backup upload endpoint, whose multipart streaming the SDK's
- * filesystem-based `uploadBackup` can't serve from a route handler. `path` is
- * appended to the v2 API base, e.g. `/backups/upload`.
+ * for the backup upload endpoint, whose multipart streaming the SDK's
+ * filesystem-based `uploadBackup` can't serve from a route handler.
  */
 export function backupFetch(
+  request: Request,
   database: string,
   path: string,
   init: RequestInit = {}
 ): Promise<Response> {
-  const url = `${getServerApiBaseUrl()}${path}`
-  return fetch(url, {
+  const { url, token } = getServerConfig(request)
+  return fetch(`${url}${path}`, {
     ...init,
     headers: {
       ...init.headers,
-      Authorization: buildImpersonationToken(database),
+      Authorization: buildImpersonationToken(database, token),
     },
     cache: "no-store",
   })
@@ -96,9 +99,10 @@ export function backupFetch(
  * SDK's `downloadBackup` writes to disk, so the browser streams the `.tar`
  * straight from the backend via this tokenized URL instead.
  */
-export function backendUrlWithToken(database: string, path: string): string {
+export function backendUrlWithToken(request: Request, database: string, path: string): string {
+  const { url, token } = getServerConfig(request)
   const sep = path.includes("?") ? "&" : "?"
-  return `${getServerApiBaseUrl()}${path}${sep}token=${encodeURIComponent(
-    buildImpersonationToken(database)
+  return `${url}${path}${sep}token=${encodeURIComponent(
+    buildImpersonationToken(database, token)
   )}`
 }

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
 export async function GET(request: Request) {
   try {
     const db = requireDatabase(request)
-    const tokens = await getImpersonatedClient(db).listMyTokens()
+    const tokens = await getImpersonatedClient(request, db).listMyTokens()
     return NextResponse.json({ tokens })
   } catch (error) {
     return errorResponse(error)
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     if (!name || !name.trim()) {
       return NextResponse.json({ error: "name is required" }, { status: 400 })
     }
-    const result = await getImpersonatedClient(db).createMyToken(name.trim(), token_type)
+    const result = await getImpersonatedClient(request, db).createMyToken(name.trim(), token_type)
     return NextResponse.json(result)
   } catch (error) {
     return errorResponse(error)
