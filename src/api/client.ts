@@ -133,6 +133,25 @@ export interface ApiResponse<T> {
   error?: string
 }
 
+/** License block within the server info response. */
+export interface LicenseInfo {
+  license_id?: string
+  plan_type?: string
+  status?: string
+  start_date?: string
+  end_date?: string
+  [key: string]: unknown
+}
+
+/** Server + license info returned by `GET /info`. */
+export interface ServerInfo {
+  version?: string
+  build_arch?: string
+  machine_id?: string
+  license?: LicenseInfo | null
+  [key: string]: unknown
+}
+
 /** Result of creating a database — includes the one-time `db_token`. */
 export interface CreateDatabaseResult {
   db_name: string
@@ -521,6 +540,33 @@ class ApiClient {
       rawRequest<CreateDatabaseResult>("/api/databases", {
         method: "POST",
         body: JSON.stringify({ db_name: dbName, db_type: dbType }),
+      })
+    )
+  }
+
+  // ── license (server-level; not db-scoped) ─────────────────
+
+  /** Server + license info: version, build arch, machine id, license status. */
+  async getInfo(): Promise<ApiResponse<ServerInfo>> {
+    return toApiResponse(() => rawRequest<ServerInfo>("/api/info"))
+  }
+
+  /** Ask the server to generate + email a trial license for `email`. */
+  async generateLicense(email: string): Promise<ApiResponse<Record<string, unknown>>> {
+    return toApiResponse(() =>
+      rawRequest<Record<string, unknown>>("/api/license/generate", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      })
+    )
+  }
+
+  /** Validate/activate a `license.lic` payload against the server. */
+  async validateLicense(license: string): Promise<ApiResponse<Record<string, unknown>>> {
+    return toApiResponse(() =>
+      rawRequest<Record<string, unknown>>("/api/license/validate", {
+        method: "POST",
+        body: JSON.stringify({ license }),
       })
     )
   }

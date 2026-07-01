@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useParams, useRouter } from 'next/navigation'
-import { GoDatabase, GoBook, GoArchive, GoKey, GoRocket } from 'react-icons/go'
+import { GoDatabase, GoBook, GoArchive, GoKey, GoRocket, GoShieldCheck, GoInfo } from 'react-icons/go'
 import { useServersStore } from '../context/ServersContext'
 import { useSelectedDatabase, useSelectedDatabaseStore } from '../context/SelectedDatabaseContext'
 import { findServerByName } from '../config/servers'
@@ -21,6 +21,11 @@ const DatabaseNav: NavItem[] = [
   { name: 'Tokens', sub: 'tokens', icon: <GoKey className="h-5 w-6" /> },
   { name: 'Backups', sub: 'backups', icon: <GoArchive className="h-5 w-6" /> },
   { name: 'Tutorials', sub: 'tutorials', icon: <GoBook className="h-5 w-6" /> },
+]
+
+const LicenseNav: NavItem[] = [
+  { name: 'License', sub: 'license', icon: <GoShieldCheck className="h-5 w-6" /> },
+  { name: 'Info', sub: 'info', icon: <GoInfo className="h-5 w-6" /> },
 ]
 
 function NavLink({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
@@ -55,6 +60,19 @@ function Sidebar({ server, database }: { server: string; database: string }) {
           Database
         </div>
         {DatabaseNav.map((item) => (
+          <NavLink
+            key={item.sub}
+            href={dbPath(server, database, item.sub)}
+            label={item.name}
+            icon={item.icon}
+            active={pathname.includes(`/${item.sub}`)}
+          />
+        ))}
+
+        <div className="px-4 pt-4 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          License
+        </div>
+        {LicenseNav.map((item) => (
           <NavLink
             key={item.sub}
             href={dbPath(server, database, item.sub)}
