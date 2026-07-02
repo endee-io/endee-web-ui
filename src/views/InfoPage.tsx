@@ -145,8 +145,8 @@ export default function InfoPage() {
                 <Field label="License ID">
                   <span className="font-mono text-sm">{license.license_id || '—'}</span>
                 </Field>
-                <Field label="Start Date">{license.start_date || '—'}</Field>
-                <Field label="End Date">{license.end_date || '—'}</Field>
+                <Field label="Start Date">{`${license.start_date} UTC` || '—'}</Field>
+                <Field label="End Date">{`${license.end_date} UTC` || '—'}</Field>
               </div>
             ) : (
               <p className="text-slate-600 dark:text-slate-300">

@@ -1,9 +1,11 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { GoShieldCheck, GoUpload } from 'react-icons/go'
 import { api } from '../api/client'
 import Notification, { type NotificationType } from '../components/Notification'
+import { dbPath, serverPath, useDbRoute } from '../lib/routes'
 
 interface Feedback {
   type: NotificationType
@@ -11,6 +13,9 @@ interface Feedback {
 }
 
 export default function LicensePage() {
+  const router = useRouter()
+  const { server, database } = useDbRoute()
+  const infoPath = database ? dbPath(server, database, 'info') : `${serverPath(server)}/info`
   const [email, setEmail] = useState('')
   const [license, setLicense] = useState('')
   const [generating, setGenerating] = useState(false)
@@ -50,6 +55,7 @@ export default function LicensePage() {
     if (res.success) {
       const message = (res.data?.message as string) || 'License activated. All features are now unlocked.'
       setActFeedback({ type: 'success', message })
+      setTimeout(() => router.push(infoPath), 1000)
     } else {
       setActFeedback({ type: 'error', message: res.error || 'Failed to activate license.' })
     }
