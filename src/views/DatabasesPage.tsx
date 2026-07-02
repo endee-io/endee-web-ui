@@ -108,19 +108,19 @@ export default function DatabasesPage() {
 
         {/* License gate: databases can't be created without an active license. */}
         {licenseActive === false && (
-          <div className="flex items-start gap-3 mb-6 p-4 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-900/20">
-            <GoAlert className="w-5 h-5 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="flex items-start gap-3 mb-6 p-4 rounded-lg border border-blue-300 bg-blue-50 dark:border-blue-800/60 dark:bg-blue-900/20">
+            <GoInfo className="w-5 h-5 mt-0.5 shrink-0 text-blue-600 dark:text-blue-400" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
                 No active license
               </p>
-              <p className="text-sm text-amber-700 dark:text-amber-300/90 mt-0.5">
+              <p className="text-sm text-blue-700 dark:text-blue-300/90 mt-0.5">
                 A valid license is required to create databases. Generate and activate one to get started.
               </p>
             </div>
             <Link
               href={licenseHref}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-2 text-sm bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors"
+              className="shrink-0 flex items-center gap-1.5 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               <GoShieldCheck className="w-4 h-4" />
               Activate License

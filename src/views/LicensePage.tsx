@@ -53,7 +53,7 @@ export default function LicensePage() {
     const res = await api.validateLicense(license.trim())
     setActivating(false)
     if (res.success) {
-      const message = (res.data?.message as string) || 'License activated. All features are now unlocked.'
+      const message = `${(res.data?.message as string)}. Redirecting.`
       setActFeedback({ type: 'success', message })
       setTimeout(() => router.push(infoPath), 1000)
     } else {
