@@ -41,12 +41,12 @@ export default function UploadBackupModal(params: UploadBackupParams) {
             const formData = new FormData()
             formData.append('backup', selectedFile)
 
-            // The proxy route reads the active server's URL + token off these
-            // headers (the api client attaches them automatically, but this
-            // multipart upload bypasses it, so set them by hand).
+            // The proxy route resolves the active server (URL + token) from this
+            // header (the api client attaches it automatically, but this
+            // multipart upload bypasses it, so set it by hand).
             const server = getActiveServer()
             const headers: Record<string, string> = server
-                ? { 'x-endee-url': server.url, 'x-endee-token': server.token }
+                ? { 'x-endee-server': server }
                 : {}
 
             const response = await fetch(

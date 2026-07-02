@@ -482,15 +482,18 @@ export default function TutorialsPage() {
         if (!payload) return { success: false, result: 'Payload required' }
         try {
           const { backup_name } = JSON.parse(payload)
-          const resolve = await api.downloadBackupUrl(backup_name)
-          if (!resolve.success || !resolve.data?.url) {
+          const resolve = await api.downloadBackup(backup_name)
+          if (!resolve.success || !resolve.data) {
             throw new Error(resolve.error || 'Failed to start download')
           }
-          const iframe = document.createElement('iframe')
-          iframe.style.display = 'none'
-          iframe.src = resolve.data.url
-          document.body.appendChild(iframe)
-          setTimeout(() => { document.body.removeChild(iframe) }, 60000)
+          const url = URL.createObjectURL(resolve.data)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `${backup_name}.tar`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
           return { success: true, result: `Download started for "${backup_name}"` }
         } catch (e) {
           return { success: false, result: `${e}` }

@@ -12,7 +12,7 @@ export async function DELETE(
   try {
     const db = requireDatabase(request)
     const { name, id } = await params
-    const collection = await getImpersonatedClient(request, db).getCollection(name)
+    const collection = await (await getImpersonatedClient(request, db)).getCollection(name)
     const result = await collection.deleteObject(id)
     return NextResponse.json(result)
   } catch (error) {

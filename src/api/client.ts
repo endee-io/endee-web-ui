@@ -80,31 +80,26 @@ export const SPACE_TYPES: SpaceType[] = ["cosine", "l2", "ip"]
 // ACTIVE SERVER
 // ============================================================
 
-export interface ActiveServer {
-  url: string
-  token: string
-}
-
-let activeServer: ActiveServer | null = null
+let activeServerName: string | null = null
 
 /**
- * Set the Endee server all subsequent proxied calls target. The proxy routes
- * read these off the `x-endee-url` / `x-endee-token` request headers, so the
- * root token never lives in server env — it travels per request from the
- * browser's selected server. Driven by the servers store.
+ * Set the Endee server all subsequent proxied calls target, by NAME. The proxy
+ * routes resolve that name to a base URL + secret root token server-side (from
+ * env in bundled mode or the on-disk servers file in independent mode), so the
+ * token never lives in the browser. Driven by the servers store.
  */
-export function setActiveServer(server: ActiveServer | null): void {
-  activeServer = server
+export function setActiveServer(name: string | null): void {
+  activeServerName = name
 }
 
-/** The server API calls currently target (or null). */
-export function getActiveServer(): ActiveServer | null {
-  return activeServer
+/** The name of the server API calls currently target (or null). */
+export function getActiveServer(): string | null {
+  return activeServerName
 }
 
 function serverHeaders(): Record<string, string> {
-  if (!activeServer) return {}
-  return { "x-endee-url": activeServer.url, "x-endee-token": activeServer.token }
+  if (!activeServerName) return {}
+  return { "x-endee-server": activeServerName }
 }
 
 // ============================================================
@@ -481,11 +476,23 @@ class ApiClient {
     )
   }
 
-  /** Resolve the tokenized backend URL the browser streams the `.tar` from. */
-  async downloadBackupUrl(backupName: string): Promise<ApiResponse<{ url: string }>> {
-    return toApiResponse(() =>
-      request<{ url: string }>(`/api/backups/${enc(backupName)}/download`)
-    )
+  /**
+   * Download a backup `.tar` as a Blob. The bytes are streamed through the
+   * same-origin proxy (which injects the server URL + token server-side), so
+   * the request must carry the active-server header — hence a fetch, not a
+   * plain navigation.
+   */
+  async downloadBackup(backupName: string): Promise<ApiResponse<Blob>> {
+    return toApiResponse(async () => {
+      const res = await fetch(`/api/backups/${enc(backupName)}/download`, {
+        headers: { ...serverHeaders() },
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error || `Download failed (status ${res.status}).`)
+      }
+      return res.blob()
+    })
   }
 
   // ── tokens (db-scoped) ────────────────────────────────────

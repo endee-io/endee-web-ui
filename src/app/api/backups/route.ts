@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic"
 export async function GET(request: Request) {
   try {
     const db = requireDatabase(request)
-    const result = await getImpersonatedClient(request, db).listBackups()
+    const result = await (await getImpersonatedClient(request, db)).listBackups()
     return NextResponse.json(result)
   } catch (error) {
     return errorResponse(error)

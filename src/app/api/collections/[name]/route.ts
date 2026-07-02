@@ -12,7 +12,7 @@ export async function GET(
   try {
     const db = requireDatabase(request)
     const { name } = await params
-    const collection = await getImpersonatedClient(request, db).getCollection(name)
+    const collection = await (await getImpersonatedClient(request, db)).getCollection(name)
     return NextResponse.json(await collection.describe())
   } catch (error) {
     return errorResponse(error)
@@ -27,7 +27,7 @@ export async function DELETE(
   try {
     const db = requireDatabase(request)
     const { name } = await params
-    await getImpersonatedClient(request, db).deleteCollection(name)
+    await (await getImpersonatedClient(request, db)).deleteCollection(name)
     return NextResponse.json({ success: true })
   } catch (error) {
     return errorResponse(error)

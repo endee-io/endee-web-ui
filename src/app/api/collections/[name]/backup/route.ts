@@ -14,7 +14,7 @@ export async function POST(
     const db = requireDatabase(request)
     const { name } = await params
     const { name: backupName } = (await request.json()) as { name: string }
-    const collection = await getImpersonatedClient(request, db).getCollection(name)
+    const collection = await (await getImpersonatedClient(request, db)).getCollection(name)
     const result = await collection.createBackup(backupName)
     return NextResponse.json(result)
   } catch (error) {

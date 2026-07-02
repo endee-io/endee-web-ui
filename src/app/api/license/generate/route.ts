@@ -5,8 +5,8 @@ import { errorResponse, passthroughJson } from "@/lib/apiRoute"
 export const dynamic = "force-dynamic"
 
 /** Base URL for /license/* endpoints (served under /api/v2, like the rest). */
-function licenseBase(request: Request): string {
-  return getServerConfig(request).url
+async function licenseBase(request: Request): Promise<string> {
+  return (await getServerConfig(request)).url
 }
 
 // POST /api/license/generate  body { email } -> ask the server to email a license
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     if (!email || !email.trim()) {
       return NextResponse.json({ error: "email is required" }, { status: 400 })
     }
-    const upstream = await fetch(`${licenseBase(request)}/license/generate`, {
+    const upstream = await fetch(`${await licenseBase(request)}/license/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: email.trim() }),

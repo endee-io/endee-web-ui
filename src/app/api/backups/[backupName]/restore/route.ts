@@ -16,7 +16,7 @@ export async function POST(
     const { target_collection_name } = (await request.json()) as {
       target_collection_name: string
     }
-    const result = await getImpersonatedClient(request, db).restoreBackup(
+    const result = await (await getImpersonatedClient(request, db)).restoreBackup(
       backupName,
       target_collection_name
     )

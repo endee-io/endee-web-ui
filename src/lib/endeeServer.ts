@@ -1,9 +1,11 @@
 /**
  * Server-only helpers for talking to the Endee backend (v2 Collections API).
  *
- * The browser may be connected to several servers. Each proxied request carries
- * the active server's base URL and root token in the `x-endee-url` /
- * `x-endee-token` headers; these helpers read them and build either:
+ * The browser sends only the ACTIVE SERVER'S NAME in the `x-endee-server`
+ * header. These helpers resolve that name to a base URL + secret root token
+ * server-side (from env in bundled mode, or the on-disk servers file in
+ * independent mode) — the token never travels to the browser. From there they
+ * build either:
  *   - a per-database root-impersonation token `root/<database>:<ROOT_TOKEN>`
  *     (data-plane: collections / objects / search / backups / tokens), or
  *   - a bare root client for control-plane admin calls (`/admin/dbs`).
@@ -12,6 +14,7 @@
  */
 
 import { Endee } from "endee"
+import { findServer } from "./serverStore"
 
 export class ConfigError extends Error {}
 
@@ -20,20 +23,27 @@ interface ServerConfig {
   token: string
 }
 
-/** Read the active server's base URL + root token from the request headers. */
-export function getServerConfig(request: Request): ServerConfig {
-  const rawUrl = request.headers.get("x-endee-url")?.trim() || ""
-  const token = request.headers.get("x-endee-token")?.trim() || ""
-  if (!rawUrl) {
-    throw new ConfigError("No server selected (missing server URL).")
+/**
+ * Resolve the active server's base URL + root token from the request. The
+ * browser sends `x-endee-server: <name>`; the credentials are looked up
+ * server-side.
+ */
+export async function getServerConfig(request: Request): Promise<ServerConfig> {
+  const name = request.headers.get("x-endee-server")?.trim() || ""
+  if (!name) {
+    throw new ConfigError("No server selected.")
   }
-  if (!token) {
-    throw new ConfigError("No server token provided.")
+  const server = await findServer(name)
+  if (!server) {
+    throw new ConfigError(`Unknown server "${name}".`)
+  }
+  if (!server.token) {
+    throw new ConfigError(`Server "${name}" has no token configured.`)
   }
   // Be lenient: accept a bare host and append /api/v2.
-  const base = rawUrl.replace(/\/+$/, "")
+  const base = server.url.replace(/\/+$/, "")
   const url = /\/api\/v\d+$/.test(base) ? base : `${base}/api/v2`
-  return { url, token }
+  return { url, token: server.token }
 }
 
 /** Build the root-impersonation auth value for a database: `root/<db>:<token>`. */
@@ -45,8 +55,8 @@ export function buildImpersonationToken(database: string, token: string): string
  * An `endee` SDK client scoped to a single database via impersonation. Used for
  * all data-plane work (collections, objects, search, backups, tokens).
  */
-export function getImpersonatedClient(request: Request, database: string): Endee {
-  const { url, token } = getServerConfig(request)
+export async function getImpersonatedClient(request: Request, database: string): Promise<Endee> {
+  const { url, token } = await getServerConfig(request)
   const client = new Endee(buildImpersonationToken(database, token))
   client.setBaseUrl(url)
   return client
@@ -56,8 +66,8 @@ export function getImpersonatedClient(request: Request, database: string): Endee
  * A bare root client for control-plane admin operations (e.g. listing or
  * creating the server's databases via `/admin/dbs`).
  */
-export function getAdminClient(request: Request): Endee {
-  const { url, token } = getServerConfig(request)
+export async function getAdminClient(request: Request): Promise<Endee> {
+  const { url, token } = await getServerConfig(request)
   const client = new Endee(token)
   client.setBaseUrl(url)
   return client
@@ -77,13 +87,13 @@ export function requireDatabase(request: Request): string {
  * for the backup upload endpoint, whose multipart streaming the SDK's
  * filesystem-based `uploadBackup` can't serve from a route handler.
  */
-export function backupFetch(
+export async function backupFetch(
   request: Request,
   database: string,
   path: string,
   init: RequestInit = {}
 ): Promise<Response> {
-  const { url, token } = getServerConfig(request)
+  const { url, token } = await getServerConfig(request)
   return fetch(`${url}${path}`, {
     ...init,
     headers: {
@@ -92,17 +102,4 @@ export function backupFetch(
     },
     cache: "no-store",
   })
-}
-
-/**
- * Full backend URL for a path including a token query param (for downloads). The
- * SDK's `downloadBackup` writes to disk, so the browser streams the `.tar`
- * straight from the backend via this tokenized URL instead.
- */
-export function backendUrlWithToken(request: Request, database: string, path: string): string {
-  const { url, token } = getServerConfig(request)
-  const sep = path.includes("?") ? "&" : "?"
-  return `${url}${path}${sep}token=${encodeURIComponent(
-    buildImpersonationToken(database, token)
-  )}`
 }

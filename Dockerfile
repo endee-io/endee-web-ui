@@ -33,16 +33,16 @@ ENV HOSTNAME=0.0.0.0
 RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nextjs
 
-# Standalone server + static assets + public (config.js lives here and is
-# rewritten at startup by the entrypoint).
+# Standalone server + static assets + public.
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# public/config.js must be writable at runtime by the app user.
-RUN chown -R nextjs:nodejs ./public
+# Independent-mode data dir (user-managed servers.json), writable by the app
+# user. Mount a volume here in docker-compose.independent.yml.
+RUN mkdir -p ./data && chown -R nextjs:nodejs ./data ./public
 
 USER nextjs
 EXPOSE 3000

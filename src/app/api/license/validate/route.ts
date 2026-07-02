@@ -5,8 +5,8 @@ import { errorResponse, passthroughJson } from "@/lib/apiRoute"
 export const dynamic = "force-dynamic"
 
 /** Base URL for /license/* endpoints (served under /api/v2, like the rest). */
-function licenseBase(request: Request): string {
-  return getServerConfig(request).url
+async function licenseBase(request: Request): Promise<string> {
+  return (await getServerConfig(request)).url
 }
 
 // POST /api/license/validate  body { license } -> activate/validate a license.
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     if (!license || !license.trim()) {
       return NextResponse.json({ error: "license is required" }, { status: 400 })
     }
-    const upstream = await fetch(`${licenseBase(request)}/license/validate`, {
+    const upstream = await fetch(`${await licenseBase(request)}/license/validate`, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: license.trim(),

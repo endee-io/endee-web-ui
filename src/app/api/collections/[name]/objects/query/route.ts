@@ -20,7 +20,7 @@ export async function POST(
         { status: 400 }
       )
     }
-    const collection = await getImpersonatedClient(request, db).getCollection(name)
+    const collection = await (await getImpersonatedClient(request, db)).getCollection(name)
     const objects = await collection.getObjects(ids)
     return NextResponse.json({ objects })
   } catch (error) {

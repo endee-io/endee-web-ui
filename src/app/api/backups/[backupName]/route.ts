@@ -12,7 +12,7 @@ export async function DELETE(
   try {
     const db = requireDatabase(request)
     const { backupName } = await params
-    const result = await getImpersonatedClient(request, db).deleteBackup(backupName)
+    const result = await (await getImpersonatedClient(request, db)).deleteBackup(backupName)
     return NextResponse.json(result)
   } catch (error) {
     return errorResponse(error)

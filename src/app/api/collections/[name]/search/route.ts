@@ -27,7 +27,7 @@ export async function POST(
     const { rerank: rerankOpts, ...options } = (await request.json()) as SearchOptions & {
       rerank?: RerankRequest
     }
-    const collection = await getImpersonatedClient(request, db).getCollection(name)
+    const collection = await (await getImpersonatedClient(request, db)).getCollection(name)
     const searchResults = await collection.search(options)
 
     if (rerankOpts) {

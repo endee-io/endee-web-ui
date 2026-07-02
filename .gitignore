@@ -31,5 +31,7 @@ yarn-error.log*
 
 CLAUDE.md
 
-# local server config (use src/config/servers.example.json as template)
-src/config/servers.json
+# independent-mode server list (use servers.example.json as a template).
+# Contains root tokens — never commit it.
+/data/
+servers.json

@@ -15,7 +15,7 @@ export async function POST(
     const db = requireDatabase(request)
     const { name } = await params
     const { updates } = (await request.json()) as { updates: UpdateFilterEntry[] }
-    const collection = await getImpersonatedClient(request, db).getCollection(name)
+    const collection = await (await getImpersonatedClient(request, db)).getCollection(name)
     const result = await collection.updateFilters(updates)
     return NextResponse.json(result)
   } catch (error) {

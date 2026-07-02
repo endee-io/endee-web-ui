@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, useParams } from 'next/navigation'
 import { GoCheckCircleFill, GoPlus, GoServer, GoShieldCheck, GoInfo, GoAlert } from 'react-icons/go'
 import { useSelectedDatabase } from '../context/SelectedDatabaseContext'
-import { findServerByName } from '../config/servers'
+import { useServers } from '../context/ServersContext'
 import { dbPath, seg } from '../lib/routes'
 import { api } from '../api/client'
 import Notification from '../components/Notification'
@@ -21,7 +21,8 @@ export default function DatabasesPage() {
   const router = useRouter()
   const params = useParams<{ server: string }>()
   const serverName = params?.server ? decodeURIComponent(params.server) : ''
-  const server = findServerByName(serverName)
+  const { servers } = useServers()
+  const server = servers.find((s) => s.name === serverName) ?? null
   const {
     databases,
     selectedDatabase,

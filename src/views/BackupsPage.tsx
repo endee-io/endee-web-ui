@@ -258,17 +258,20 @@ export default function BackupsPage() {
 
   const handleDownloadBackup = async (backupName: string) => {
     try {
-      // Resolve the signed backend download URL via the proxy (token injected
-      // server-side), then trigger the download in a hidden iframe.
-      const response = await api.downloadBackupUrl(backupName)
-      if (!response.success || !response.data?.url) {
+      // Stream the .tar through the proxy (token injected server-side) and save
+      // the resulting blob via a temporary object URL.
+      const response = await api.downloadBackup(backupName)
+      if (!response.success || !response.data) {
         throw new Error(response.error || 'Failed to start download')
       }
-      const iframe = document.createElement('iframe')
-      iframe.style.display = 'none'
-      iframe.src = response.data.url
-      document.body.appendChild(iframe)
-      setTimeout(() => { document.body.removeChild(iframe) }, 60000)
+      const url = URL.createObjectURL(response.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${backupName}.tar`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
       showNotification('success', `Downloading backup "${backupName}"`)
     } catch (err) {
       showNotification('error', err instanceof Error ? err.message : 'Failed to download backup')

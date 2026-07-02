@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic"
 // Server-level (root token), not scoped to a database — mirrors /license/*.
 export async function GET(request: Request) {
   try {
-    const { url, token } = getServerConfig(request)
+    const { url, token } = await getServerConfig(request)
     const upstream = await fetch(`${url}/info`, {
       headers: { Authorization: token },
       cache: "no-store",

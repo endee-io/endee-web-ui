@@ -6,7 +6,6 @@ import { usePathname, useParams, useRouter } from 'next/navigation'
 import { GoDatabase, GoBook, GoArchive, GoKey, GoRocket, GoShieldCheck, GoInfo } from 'react-icons/go'
 import { useServersStore } from '../context/ServersContext'
 import { useSelectedDatabase, useSelectedDatabaseStore } from '../context/SelectedDatabaseContext'
-import { findServerByName } from '../config/servers'
 import { dbPath, serverPath } from '../lib/routes'
 
 interface NavItem {
@@ -99,10 +98,13 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   const database = params?.database ? decodeURIComponent(params.database) : ''
 
   const { databases, selectedDatabase, loading } = useSelectedDatabase()
+  const { servers, loaded } = useServersStore()
+  const known = servers.some((s) => s.name === server)
 
   // Point the API client at the server + select the database from the URL.
   useEffect(() => {
-    if (!findServerByName(server)) {
+    if (!loaded) return
+    if (!known) {
       router.replace('/')
       return
     }
@@ -110,7 +112,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     if (database) useSelectedDatabaseStore.getState().selectDatabase(database)
     useSelectedDatabaseStore.getState().refreshDatabases()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [server, database])
+  }, [server, database, known, loaded])
 
   // Once databases are loaded, ensure the URL database actually exists.
   useEffect(() => {
@@ -121,7 +123,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, databases, database, server])
 
-  const ready = !!findServerByName(server) && selectedDatabase === database
+  const ready = loaded && known && selectedDatabase === database
 
   if (!ready) {
     return (
