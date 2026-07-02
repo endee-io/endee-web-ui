@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { BarLoader } from 'react-spinners'
 import { GoCopy, GoCheck } from 'react-icons/go'
-import { api, DB_TYPES } from '../api/client'
-import type { DbType, CreateDatabaseResult } from '../api/client'
+import { api } from '../api/client'
+import type { CreateDatabaseResult } from '../api/client'
 import Notification from './Notification'
 
 type Props = {
@@ -19,7 +19,6 @@ const nameValid = (n: string) => /^[a-zA-Z0-9_]{1,48}$/.test(n)
 export default function CreateDatabaseModal({ onClose, onCreated }: Props) {
   const [dbName, setDbName] = useState('')
   const [nameError, setNameError] = useState<string | null>(null)
-  const [dbType, setDbType] = useState<DbType>('scale')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CreateDatabaseResult | null>(null)
@@ -30,7 +29,7 @@ export default function CreateDatabaseModal({ onClose, onCreated }: Props) {
     setCreating(true)
     setError(null)
     try {
-      const response = await api.createDatabase(dbName.trim(), dbType)
+      const response = await api.createDatabase(dbName.trim(), 'enterprise')
       if (!response.success || !response.data) {
         throw new Error(response.error || 'Failed to create database')
       }
@@ -94,20 +93,6 @@ export default function CreateDatabaseModal({ onClose, onCreated }: Props) {
                 ) : (
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Alphanumeric characters and underscores only. Max 48 characters.</p>
                 )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tier</label>
-                <select
-                  value={dbType}
-                  onChange={(e) => setDbType(e.target.value as DbType)}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent capitalize"
-                  disabled={creating}
-                >
-                  {DB_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
               </div>
             </div>
 
