@@ -3,7 +3,7 @@ import { importServers, ServerStoreError } from "@/lib/serverStore"
 
 export const dynamic = "force-dynamic"
 
-// POST /api/servers/import  body: servers.json array -> replace the list (independent)
+// POST /api/servers/import  body: servers.json array -> replace the list (multi-server)
 export async function POST(request: Request) {
   try {
     const body = await request.json()

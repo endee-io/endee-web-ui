@@ -20,7 +20,7 @@ export async function GET() {
   }
 }
 
-// POST /api/servers  body { name, url, token }  -> add a server (independent mode)
+// POST /api/servers  body { name, url, token }  -> add a server (multi-server mode)
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as { name?: string; url?: string; token?: string }

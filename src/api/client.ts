@@ -85,7 +85,7 @@ let activeServerName: string | null = null
 /**
  * Set the Endee server all subsequent proxied calls target, by NAME. The proxy
  * routes resolve that name to a base URL + secret root token server-side (from
- * env in bundled mode or the on-disk servers file in independent mode), so the
+ * env in single-server mode or the on-disk servers file in multi-server mode), so the
  * token never lives in the browser. Driven by the servers store.
  */
 export function setActiveServer(name: string | null): void {

@@ -15,7 +15,7 @@ export default function ServersPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showAdd, setShowAdd] = useState(false)
 
-  const independent = mode === 'independent'
+  const independent = mode === 'multi-server'
 
   const connect = (name: string) => {
     router.push(serverPath(name))

@@ -4,7 +4,7 @@ import { exportServers, ServerStoreError } from "@/lib/serverStore"
 export const dynamic = "force-dynamic"
 
 // GET /api/servers/export -> the full servers.json (WITH tokens) as a download.
-// Independent mode only; tokens are included so the file round-trips via import.
+// Multi-server mode only; tokens are included so the file round-trips via import.
 export async function GET() {
   try {
     const servers = await exportServers()

@@ -3,8 +3,8 @@
  *
  * The browser sends only the ACTIVE SERVER'S NAME in the `x-endee-server`
  * header. These helpers resolve that name to a base URL + secret root token
- * server-side (from env in bundled mode, or the on-disk servers file in
- * independent mode) — the token never travels to the browser. From there they
+ * server-side (from env in single-server mode, or the on-disk servers file in
+ * multi-server mode) — the token never travels to the browser. From there they
  * build either:
  *   - a per-database root-impersonation token `root/<database>:<ROOT_TOKEN>`
  *     (data-plane: collections / objects / search / backups / tokens), or

@@ -4,7 +4,7 @@ import { create } from 'zustand'
 import { setActiveServer as setClientServer, setCurrentDatabase } from '../api/client'
 import { useSelectedDatabaseStore } from './SelectedDatabaseContext'
 
-export type AppMode = 'bundled' | 'independent'
+export type AppMode = 'single-server' | 'multi-server'
 
 /** A configured Endee server as seen by the browser — never includes the token. */
 export interface ServerEntry {
@@ -35,16 +35,16 @@ interface ServersState {
   /** Point the API client at the server with this name (no-op if unknown). */
   setActiveServer: (name: string | null) => void
   activeServer: () => ServerEntry | null
-  /** Add a server (independent mode). Throws with a message on failure. */
+  /** Add a server (multi-server mode). Throws with a message on failure. */
   addServer: (input: { name: string; url: string; token: string }) => Promise<void>
-  /** Remove a server by name (independent mode). */
+  /** Remove a server by name (multi-server mode). */
   removeServer: (name: string) => Promise<void>
-  /** Replace the server list from a parsed servers.json array (independent mode). */
+  /** Replace the server list from a parsed servers.json array (multi-server mode). */
   importServers: (data: unknown) => Promise<void>
 }
 
 export const useServersStore = create<ServersState>((set, get) => ({
-  mode: 'bundled',
+  mode: 'single-server',
   servers: [],
   loaded: false,
   activeServerName: null,
@@ -54,7 +54,7 @@ export const useServersStore = create<ServersState>((set, get) => ({
       fetch('/api/mode'),
       fetch('/api/servers'),
     ])
-    const mode: AppMode = (await modeRes.json()).mode === 'independent' ? 'independent' : 'bundled'
+    const mode: AppMode = (await modeRes.json()).mode === 'multi-server' ? 'multi-server' : 'single-server'
     const servers: ServerEntry[] = (await serversRes.json()).servers ?? []
     set({ mode, servers, loaded: true })
   },

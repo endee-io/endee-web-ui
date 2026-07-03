@@ -2,8 +2,8 @@
  * Server-only server-list store. Resolves the set of configured Endee servers
  * (and their secret root tokens) for the active APP_MODE:
  *
- *   - bundled:     a single server derived from container env. Read-only.
- *   - independent: a user-managed list persisted to SERVERS_FILE on disk.
+ *   - single-server: a single server derived from container env. Read-only.
+ *   - multi-server:  a user-managed list persisted to SERVERS_FILE on disk.
  *
  * Tokens live only here and in the proxy routes; they are never sent to the
  * browser (see the /api/servers route, which strips them). Must NEVER be
@@ -53,9 +53,9 @@ async function writeFile(servers: StoredServer[]): Promise<void> {
   await fs.writeFile(file, JSON.stringify(servers, null, 2) + "\n", "utf8")
 }
 
-/** All configured servers (with tokens). Bundled mode returns the env server. */
+/** All configured servers (with tokens). Single-server mode returns the env server. */
 export async function listServers(): Promise<StoredServer[]> {
-  if (getAppMode() === "bundled") {
+  if (getAppMode() === "single-server") {
     const s = getBundledServer()
     return s ? [s] : []
   }
@@ -73,8 +73,8 @@ export async function findServer(name: string): Promise<StoredServer | null> {
 }
 
 function assertIndependent() {
-  if (getAppMode() !== "independent") {
-    throw new ServerStoreError("Server management is disabled in bundled mode.")
+  if (getAppMode() !== "multi-server") {
+    throw new ServerStoreError("Server management is disabled in single-server mode.")
   }
 }
 
@@ -87,7 +87,7 @@ function validate(server: Partial<StoredServer>): StoredServer {
   return { name, url, token }
 }
 
-/** Add a server (independent mode only). Rejects duplicate names. */
+/** Add a server (multi-server mode only). Rejects duplicate names. */
 export async function addServer(input: Partial<StoredServer>): Promise<PublicServer[]> {
   assertIndependent()
   const server = validate(input)
@@ -100,7 +100,7 @@ export async function addServer(input: Partial<StoredServer>): Promise<PublicSer
   return servers.map(toPublic)
 }
 
-/** Delete a server by name (independent mode only). */
+/** Delete a server by name (multi-server mode only). */
 export async function deleteServer(name: string): Promise<PublicServer[]> {
   assertIndependent()
   const servers = await readFile()
@@ -109,7 +109,7 @@ export async function deleteServer(name: string): Promise<PublicServer[]> {
   return next.map(toPublic)
 }
 
-/** Replace the entire server list from an imported file (independent mode only). */
+/** Replace the entire server list from an imported file (multi-server mode only). */
 export async function importServers(input: unknown): Promise<PublicServer[]> {
   assertIndependent()
   if (!Array.isArray(input)) {
@@ -125,7 +125,7 @@ export async function importServers(input: unknown): Promise<PublicServer[]> {
   return servers.map(toPublic)
 }
 
-/** Full server list (with tokens) for download/export (independent mode only). */
+/** Full server list (with tokens) for download/export (multi-server mode only). */
 export async function exportServers(): Promise<StoredServer[]> {
   assertIndependent()
   return readFile()

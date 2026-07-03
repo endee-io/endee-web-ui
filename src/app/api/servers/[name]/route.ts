@@ -3,7 +3,7 @@ import { deleteServer, ServerStoreError } from "@/lib/serverStore"
 
 export const dynamic = "force-dynamic"
 
-// DELETE /api/servers/<name>  -> remove a server (independent mode)
+// DELETE /api/servers/<name>  -> remove a server (multi-server mode)
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ name: string }> }
