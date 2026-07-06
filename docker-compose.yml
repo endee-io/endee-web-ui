@@ -1,0 +1,28 @@
+# Standalone endee-web in MULTI-SERVER mode.
+#
+# Runs only the frontend. Endee servers are user-managed from the UI and
+# persisted to servers.json on a mounted volume, so the list (and its tokens)
+# survives restarts. Connect the UI to any reachable Endee servers you add.
+#
+# The browser never talks to an Endee server directly — every request is proxied
+# through the Next server, which keeps each server's root token server-side.
+#
+# NOTE: When endee-web is run as part of the Endee server's own compose stack, it
+# is published on 8081:3000 in single-server mode. This file is for running the
+# UI on its own on port 3000.
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: endee-web:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - APP_MODE=multi-server
+      - SERVERS_FILE=/data/servers.json
+    volumes:
+      # Persist the user-managed server list across restarts.
+      - ./data:/data
+    restart: unless-stopped

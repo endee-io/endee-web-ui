@@ -1,59 +1,47 @@
-import { createContext, useContext, useState, useCallback, useRef } from 'react'
-import type { ReactNode } from 'react'
+'use client'
+
+import { create } from 'zustand'
 import type { NotificationType } from '../components/Notification'
 
 interface NotificationState {
-  type: NotificationType
-  message: string
-}
-
-interface NotificationContextType {
-  notification: NotificationState | null
+  notification: { type: NotificationType; message: string } | null
   showNotification: (type: NotificationType, message: string) => void
   clearNotification: () => void
 }
 
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
+let timer: ReturnType<typeof setTimeout> | null = null
 
-export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [notification, setNotification] = useState<NotificationState | null>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const clearNotification = useCallback(() => {
-    setNotification(null)
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-  }, [])
-
-  const showNotification = useCallback((type: NotificationType, message: string) => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-
-    setNotification({ type, message })
-
-    if (type === 'success' || type === 'info') {
-      timerRef.current = setTimeout(() => {
-        setNotification(null)
-        timerRef.current = null
-      }, 4000)
-    }
-  }, [])
-
-  return (
-    <NotificationContext.Provider value={{ notification, showNotification, clearNotification }}>
-      {children}
-    </NotificationContext.Provider>
-  )
+function clearTimer() {
+  if (timer) {
+    clearTimeout(timer)
+    timer = null
+  }
 }
 
+export const useNotificationStore = create<NotificationState>((set) => ({
+  notification: null,
+
+  clearNotification: () => {
+    clearTimer()
+    set({ notification: null })
+  },
+
+  showNotification: (type: NotificationType, message: string) => {
+    clearTimer()
+    set({ notification: { type, message } })
+
+    if (type === 'success' || type === 'info') {
+      timer = setTimeout(() => {
+        timer = null
+        set({ notification: null })
+      }, 4000)
+    }
+  },
+}))
+
+/**
+ * Drop-in replacement for the former context hook.
+ */
 export function useNotification() {
-  const context = useContext(NotificationContext)
-  if (context === undefined) {
-    throw new Error('useNotification must be used within a NotificationProvider')
-  }
-  return context
+  return useNotificationStore()
 }

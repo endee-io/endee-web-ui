@@ -1,6 +1,9 @@
+'use client'
+
 import { useState } from "react";
 import { BarLoader } from "react-spinners";
-import { useAuth } from "../context/AuthContext";
+import { getActiveServer } from "../api/client";
+import { useSelectedDatabase } from "../context/SelectedDatabaseContext";
 import { useNotification } from "../context/NotificationContext";
 import Notification from "./Notification";
 
@@ -12,7 +15,7 @@ export default function UploadBackupModal(params: UploadBackupParams) {
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const [uploading, setUploading] = useState(false)
     const [uploadError, setUploadError] = useState<string | null>(null)
-    const { token, handleUnauthorized } = useAuth()
+    const { selectedDatabase } = useSelectedDatabase()
     const { showNotification } = useNotification()
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,19 +41,24 @@ export default function UploadBackupModal(params: UploadBackupParams) {
             const formData = new FormData()
             formData.append('backup', selectedFile)
 
-            const response = await fetch('/api/v1/backups/upload', {
-                method: 'POST',
-                headers: {
-                    ...(token && { Authorization: token })
-                },
-                body: formData
-            })
+            // The proxy route resolves the active server (URL + token) from this
+            // header (the api client attaches it automatically, but this
+            // multipart upload bypasses it, so set it by hand).
+            const server = getActiveServer()
+            const headers: Record<string, string> = server
+                ? { 'x-endee-server': server }
+                : {}
+
+            const response = await fetch(
+                `/api/backups/upload?db=${encodeURIComponent(selectedDatabase ?? '')}`,
+                {
+                    method: 'POST',
+                    headers,
+                    body: formData
+                }
+            )
 
             if (!response.ok) {
-                if (response.status === 401) {
-                    handleUnauthorized()
-                    throw new Error("Authentication Token Required.")
-                }
                 const errorData = await response.json().catch(() => ({}))
                 throw new Error(errorData.error || 'Failed to upload backup')
             }
