@@ -21,7 +21,7 @@ export default function DatabasesPage() {
   const router = useRouter()
   const params = useParams<{ server: string }>()
   const serverName = params?.server ? decodeURIComponent(params.server) : ''
-  const { servers } = useServers()
+  const { servers, activeServerName } = useServers()
   const server = servers.find((s) => s.name === serverName) ?? null
   const {
     databases,
@@ -36,6 +36,11 @@ export default function DatabasesPage() {
   const [licenseActive, setLicenseActive] = useState<boolean | null>(null)
 
   useEffect(() => {
+    // Wait until the API client is actually pointed at this server. The parent
+    // ServerLayout sets the active server in an effect, which (React runs parent
+    // effects after child effects) can lag this page's mount effect — firing
+    // getInfo() too early yields a "No server selected" 500.
+    if (activeServerName !== serverName) return
     let cancelled = false
     ;(async () => {
       const res = await api.getInfo()
@@ -45,7 +50,7 @@ export default function DatabasesPage() {
     return () => {
       cancelled = true
     }
-  }, [serverName])
+  }, [serverName, activeServerName])
 
   const licenseHref = `/${seg(serverName)}/license`
 
