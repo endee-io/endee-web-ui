@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useParams, useRouter } from 'next/navigation'
-import { GoDatabase, GoBook, GoArchive, GoKey, GoRocket, GoShieldCheck, GoInfo } from 'react-icons/go'
+import { GoDatabase, GoBook, GoArchive, GoKey, GoRocket, GoShieldCheck } from 'react-icons/go'
 import { useServersStore } from '../context/ServersContext'
 import { useSelectedDatabase, useSelectedDatabaseStore } from '../context/SelectedDatabaseContext'
 import { dbPath, serverPath } from '../lib/routes'
@@ -24,7 +24,6 @@ const DatabaseNav: NavItem[] = [
 
 const LicenseNav: NavItem[] = [
   { name: 'License', sub: 'license', icon: <GoShieldCheck className="h-5 w-6" /> },
-  { name: 'Info', sub: 'info', icon: <GoInfo className="h-5 w-6" /> },
 ]
 
 function NavLink({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
