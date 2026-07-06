@@ -1,35 +1,28 @@
-# BUNDLED stack: Next.js frontend + Endee vector DB server in one compose.
+# Standalone endee-web in MULTI-SERVER mode.
 #
-# The browser talks ONLY to the frontend; every Endee request is proxied through
-# the Next server, which reaches the Endee server over the internal compose
-# network. That has two consequences:
-#   1. NDD_SERVER_URL uses the compose service name "endee" (resolved
-#      server-side only, so the Endee port need NOT be published to the host or
-#      be reachable from the browser).
-#   2. The root token (NDD_ROOT_TOKEN) stays inside the frontend container and is
-#      never sent to the browser.
+# Runs only the frontend. Endee servers are user-managed from the UI and
+# persisted to servers.json on a mounted volume, so the list (and its tokens)
+# survives restarts. Connect the UI to any reachable Endee servers you add.
 #
-# For INDEPENDENT mode instead, see docker-compose.independent.yml.
+# The browser never talks to an Endee server directly — every request is proxied
+# through the Next server, which keeps each server's root token server-side.
+#
+# NOTE: When endee-web is run as part of the Endee server's own compose stack, it
+# is published on 8081:3000 in single-server mode. This file is for running the
+# UI on its own on port 3000.
 
 services:
   frontend:
     build:
       context: .
       dockerfile: Dockerfile
-    image: endee-web-ui:latest
+    image: endee-web:latest
     ports:
       - "3000:3000"
     environment:
-      - APP_MODE=bundled
-      # Server-side URL of the Endee server (compose-internal service name).
-      - NDD_SERVER_URL=http://endee:8080/api/v2
-      # Admin root token — kept server-side, never exposed to the browser.
-      - NDD_ROOT_TOKEN=${NDD_ROOT_TOKEN:-}
-    depends_on:
-      - endee
-    restart: unless-stopped
-
-  endee:
-    # Replace with the actual Endee server image.
-    image: endee/server:latest
+      - APP_MODE=multi-server
+      - SERVERS_FILE=/data/servers.json
+    volumes:
+      # Persist the user-managed server list across restarts.
+      - ./data:/data
     restart: unless-stopped
