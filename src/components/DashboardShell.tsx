@@ -3,10 +3,11 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useParams, useRouter } from 'next/navigation'
-import { GoDatabase, GoBook, GoArchive, GoKey, GoRocket, GoShieldCheck } from 'react-icons/go'
+import { GoDatabase, GoBook, GoArchive, GoKey, GoRocket, GoShieldCheck, GoInfo } from 'react-icons/go'
 import { useServersStore } from '../context/ServersContext'
 import { useSelectedDatabase, useSelectedDatabaseStore } from '../context/SelectedDatabaseContext'
 import { dbPath, serverPath } from '../lib/routes'
+import LicenseExpiryNudge from './LicenseExpiryNudge'
 
 interface NavItem {
   name: string
@@ -24,6 +25,7 @@ const DatabaseNav: NavItem[] = [
 
 const LicenseNav: NavItem[] = [
   { name: 'License', sub: 'license', icon: <GoShieldCheck className="h-5 w-6" /> },
+  { name: 'Info', sub: 'info', icon: <GoInfo className="h-5 w-6" /> },
 ]
 
 function NavLink({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
@@ -92,6 +94,7 @@ function Sidebar({ server, database }: { server: string; database: string }) {
  */
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname() ?? ''
   const params = useParams<{ server: string; database: string }>()
   const server = params?.server ? decodeURIComponent(params.server) : ''
   const database = params?.database ? decodeURIComponent(params.database) : ''
@@ -136,7 +139,14 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     <div className="flex flex-row flex-1 overflow-hidden">
       <Sidebar server={server} database={database} />
       <main className="flex-1 overflow-auto flex flex-col items-center bg-card-background dark:bg-slate-800">
-        <div className="p-6 w-[95%]">{children}</div>
+        <div className="p-6 w-[95%]">
+          {/* License-expiry nudge on every database page except Get started,
+              License, and Info (those render their own, page-aware nudge). */}
+          {!pathname.includes('/get-started') &&
+            !pathname.includes('/license') &&
+            !pathname.includes('/info') && <LicenseExpiryNudge />}
+          {children}
+        </div>
       </main>
     </div>
   )

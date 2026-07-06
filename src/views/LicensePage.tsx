@@ -1,60 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { GoShieldCheck, GoUpload, GoCopy, GoCheck, GoAlert } from 'react-icons/go'
+import { GoShieldCheck, GoUpload } from 'react-icons/go'
 import { api, type ServerInfo } from '../api/client'
 import Notification, { type NotificationType } from '../components/Notification'
+import LicenseExpiryNudge from '../components/LicenseExpiryNudge'
+import { formatDate, statusBadge } from '../lib/license'
 
 interface Feedback {
   type: NotificationType
   message: string
-}
-
-/** Colour + label for a license status value. */
-function statusBadge(status?: string): { label: string; className: string } {
-  switch ((status || '').toLowerCase()) {
-    case 'active':
-    case 'valid':
-      return {
-        label: status!,
-        className: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
-      }
-    case 'expired':
-      return {
-        label: 'Expired',
-        className: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
-      }
-    default:
-      return {
-        label: status || 'Not Activated',
-        className: 'bg-slate-100 text-slate-600 dark:bg-slate-600 dark:text-slate-300',
-      }
-  }
-}
-
-/** Number of days before expiry at which we nudge the user to renew. */
-const EXPIRY_NUDGE_DAYS = 7
-
-/** Parse a license date string into a Date, or null if unparseable. */
-function parseLicenseDate(value?: string): Date | null {
-  if (!value) return null
-  // License dates are UTC without a zone marker; append one so parsing is stable.
-  const d = new Date(`${value.trim().replace(' ', 'T')}Z`)
-  return isNaN(d.getTime()) ? null : d
-}
-
-/** Format a license date string as a date only (no time), e.g. "Jul 6, 2026". */
-function formatDate(value?: string): string {
-  const d = parseLicenseDate(value)
-  if (!d || isNaN(d.getTime())) return value || '—'
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-}
-
-/** Whole days from now until `value`; negative if already past. Null if unparseable. */
-function daysUntil(value?: string): number | null {
-  const d = parseLicenseDate(value)
-  if (!d || isNaN(d.getTime())) return null
-  return Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -64,27 +19,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         {label}
       </div>
       <div className="text-slate-800 dark:text-slate-100">{children}</div>
-    </div>
-  )
-}
-
-function CopyableId({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false)
-  async function copy() {
-    await navigator.clipboard.writeText(value)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-  return (
-    <div className="flex items-center gap-2">
-      <span className="font-mono text-sm break-all">{value}</span>
-      <button
-        onClick={copy}
-        title="Copy"
-        className="shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-      >
-        {copied ? <GoCheck className="w-4 h-4 text-green-500" /> : <GoCopy className="w-4 h-4" />}
-      </button>
     </div>
   )
 }
@@ -169,11 +103,6 @@ export default function LicensePage() {
 
   const licenseInfo = info?.license
   const badge = statusBadge(licenseInfo?.status)
-  // Nudge when an active license is close to expiring (or already lapsed).
-  const daysLeft = licenseInfo?.status && statusBadge(licenseInfo.status).label !== 'Expired'
-    ? daysUntil(licenseInfo.end_date)
-    : null
-  const showExpiryNudge = daysLeft !== null && daysLeft <= EXPIRY_NUDGE_DAYS
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -184,30 +113,15 @@ export default function LicensePage() {
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">License</h1>
         </div>
         <p className="text-slate-600 dark:text-slate-300">
-          System details, the current license status, and tools to generate and activate a license.
+          The current license status, and tools to generate and activate a license.
         </p>
       </div>
 
       {/* Expiry nudge */}
-      {showExpiryNudge && (
-        <div className="flex items-start gap-3 mb-6 p-4 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-900/20">
-          <GoAlert className="w-5 h-5 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-              {daysLeft! <= 0
-                ? 'Your license has expired'
-                : `Your license expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`}
-            </p>
-            <p className="text-sm text-amber-700 dark:text-amber-300/90 mt-0.5">
-              Generate a new license below and activate it to avoid interruption
-              {licenseInfo?.end_date ? ` (expires ${formatDate(licenseInfo.end_date)})` : ''}.
-            </p>
-          </div>
-        </div>
-      )}
+      <LicenseExpiryNudge license={licenseInfo ?? null} />
 
-      {/* Server info + license status */}
-      {infoLoading && <div className="text-slate-500 dark:text-slate-400 mb-6">Loading server info…</div>}
+      {/* License status */}
+      {infoLoading && <div className="text-slate-500 dark:text-slate-400 mb-6">Loading license status…</div>}
 
       {!infoLoading && infoError && (
         <Notification
@@ -220,26 +134,6 @@ export default function LicensePage() {
 
       {!infoLoading && !infoError && info && (
         <div className="space-y-6 mb-8">
-          {/* System */}
-          <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-6">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300 mb-4">
-              System
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Endee Server Version">{info.version || '—'}</Field>
-              <Field label="Build Architecture">
-                <span className="uppercase">{info.build_arch || '—'}</span>
-              </Field>
-              {info.machine_id && (
-                <div className="sm:col-span-2">
-                  <Field label="Machine ID">
-                    <CopyableId value={info.machine_id} />
-                  </Field>
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* License status */}
           <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -276,10 +170,15 @@ export default function LicensePage() {
           <span className="w-6 h-6 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-sm font-semibold">
             1
           </span>
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Generate License</h2>
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Generate Trial License</h2>
         </div>
         <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
-          Enter your email address. Your license will be sent to you within seconds.
+          Enter your email address to receive a free 30-day trial license within seconds. For a
+          full license, contact{' '}
+          <a href="mailto:support@endee.io" className="text-blue-600 dark:text-blue-400 hover:underline">
+            support@endee.io
+          </a>
+          .
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
           <input
