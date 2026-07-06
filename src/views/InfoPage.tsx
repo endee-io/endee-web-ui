@@ -5,6 +5,7 @@ import { GoInfo, GoCopy, GoCheck } from 'react-icons/go'
 import { api, type ServerInfo } from '../api/client'
 import Notification from '../components/Notification'
 import LicenseExpiryNudge from '../components/LicenseExpiryNudge'
+import { copyToClipboard } from '../lib/clipboard'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -20,7 +21,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function CopyableId({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
   async function copy() {
-    await navigator.clipboard.writeText(value)
+    await copyToClipboard(value)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }

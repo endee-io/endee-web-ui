@@ -6,6 +6,7 @@ import { GoCopy, GoCheck } from 'react-icons/go'
 import { api } from '../api/client'
 import type { TokenType, CreateTokenResult } from '../api/client'
 import Notification from './Notification'
+import { copyToClipboard } from '../lib/clipboard'
 
 type Props = {
   onClose: () => void
@@ -45,7 +46,7 @@ export default function CreateTokenModal({ onClose, onCreated }: Props) {
   const copyToken = async () => {
     if (!result?.db_token) return
     try {
-      await navigator.clipboard.writeText(result.db_token)
+      await copyToClipboard(result.db_token)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
