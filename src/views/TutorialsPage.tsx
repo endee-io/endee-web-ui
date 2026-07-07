@@ -82,7 +82,7 @@ export default function TutorialsPage() {
       title: 'Create Collection',
       description:
         'Create a collection with one or more named, typed fields. This example adds a dense "embedding" field and a "keywords" sparse field.',
-      endpoint: 'POST /api/v2/collections',
+      endpoint: 'POST /api/v2/collection',
       method: 'POST',
       requiresPayload: true,
       defaultPayload: JSON.stringify(
@@ -236,7 +236,7 @@ export default function TutorialsPage() {
       id: 'list-collections',
       title: 'List Collections',
       description: 'Retrieve all collections in the selected database, with their field definitions.',
-      endpoint: 'GET /api/v2/collections',
+      endpoint: 'GET /api/v2/collection',
       method: 'GET',
       run: async () => {
         const response = await api.listCollections()
@@ -395,7 +395,7 @@ export default function TutorialsPage() {
       title: 'Create Backup',
       description:
         'Asynchronously back up a collection. The backup runs in the background — check the active-backup step to monitor progress.',
-      endpoint: 'POST /api/v2/collection/:collectionName/backups',
+      endpoint: 'POST /api/v2/collection/:collectionName/backup',
       method: 'POST',
       requiresCollection: true,
       requiresPayload: true,
@@ -415,7 +415,7 @@ export default function TutorialsPage() {
       id: 'list-backups',
       title: 'List Backups',
       description: 'Retrieve all backups for the selected database.',
-      endpoint: 'GET /api/v2/backups',
+      endpoint: 'GET /api/v2/backup',
       method: 'GET',
       run: async () => apiResult(await api.listBackups()),
     },
