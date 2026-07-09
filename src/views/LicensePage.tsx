@@ -1,11 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { GoShieldCheck, GoUpload } from 'react-icons/go'
+import { useRouter } from 'next/navigation'
+import { GoArrowRight, GoShieldCheck, GoUpload } from 'react-icons/go'
 import { api, type ServerInfo } from '../api/client'
 import Notification, { type NotificationType } from '../components/Notification'
 import LicenseExpiryNudge from '../components/LicenseExpiryNudge'
 import { formatDate, statusBadge } from '../lib/license'
+import { useDbRoute } from '../lib/routes'
 
 interface Feedback {
   type: NotificationType
@@ -24,6 +26,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export default function LicensePage() {
+  const router = useRouter()
+  const { serverPath } = useDbRoute()
+
   // Server + license info (loaded on mount, refreshed after activation).
   const [info, setInfo] = useState<ServerInfo | null>(null)
   const [infoLoading, setInfoLoading] = useState(true)
@@ -245,13 +250,23 @@ export default function LicensePage() {
           className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
         />
 
-        <button
-          onClick={handleActivate}
-          disabled={activating}
-          className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {activating ? 'Activating…' : 'Activate License'}
-        </button>
+        {actFeedback?.type === 'success' ? (
+          <button
+            onClick={() => router.push(serverPath())}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+          >
+            Go to databases
+            <GoArrowRight className="w-4 h-4" />
+          </button>
+        ) : (
+          <button
+            onClick={handleActivate}
+            disabled={activating}
+            className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {activating ? 'Activating…' : 'Activate License'}
+          </button>
+        )}
 
         {actFeedback && (
           <Notification

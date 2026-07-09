@@ -82,7 +82,7 @@ export default function TutorialsPage() {
       title: 'Create Collection',
       description:
         'Create a collection with one or more named, typed fields. This example adds a dense "embedding" field and a "keywords" sparse field.',
-      endpoint: 'POST /api/v2/collections',
+      endpoint: 'POST /api/v2/collection',
       method: 'POST',
       requiresPayload: true,
       defaultPayload: JSON.stringify(
@@ -113,7 +113,7 @@ export default function TutorialsPage() {
       title: 'Insert Objects',
       description:
         'Upsert objects. Each object carries values for any subset of the collection’s fields, plus optional meta and filter tags.',
-      endpoint: 'POST /api/v2/collections/:collectionName/objects',
+      endpoint: 'POST /api/v2/collection/:collectionName/objects',
       method: 'POST',
       requiresCollection: true,
       requiresPayload: true,
@@ -157,7 +157,7 @@ export default function TutorialsPage() {
       title: 'Search (single field)',
       description:
         'Search one field. The response is one ranked list keyed by that field name. "limit" is the max hits for the field.',
-      endpoint: 'POST /api/v2/collections/:collectionName/search',
+      endpoint: 'POST /api/v2/collection/:collectionName/search',
       method: 'POST',
       requiresCollection: true,
       requiresPayload: true,
@@ -181,7 +181,7 @@ export default function TutorialsPage() {
       title: 'Hybrid Search + Rerank',
       description:
         'Query several fields at once and fuse the per-field lists into a single ranked list with Reciprocal Rank Fusion (rerank).',
-      endpoint: 'POST /api/v2/collections/:collectionName/search',
+      endpoint: 'POST /api/v2/collection/:collectionName/search',
       method: 'POST',
       requiresCollection: true,
       requiresPayload: true,
@@ -210,7 +210,7 @@ export default function TutorialsPage() {
       id: 'search-with-filter',
       title: 'Search with Filters',
       description: 'Apply a metadata filter to a search to narrow the candidates.',
-      endpoint: 'POST /api/v2/collections/:collectionName/search',
+      endpoint: 'POST /api/v2/collection/:collectionName/search',
       method: 'POST',
       requiresCollection: true,
       requiresPayload: true,
@@ -236,7 +236,7 @@ export default function TutorialsPage() {
       id: 'list-collections',
       title: 'List Collections',
       description: 'Retrieve all collections in the selected database, with their field definitions.',
-      endpoint: 'GET /api/v2/collections',
+      endpoint: 'GET /api/v2/collection',
       method: 'GET',
       run: async () => {
         const response = await api.listCollections()
@@ -250,7 +250,7 @@ export default function TutorialsPage() {
       id: 'describe-collection',
       title: 'Describe Collection',
       description: 'Retrieve metadata for one collection: its fields, object count, layout version, and creation time.',
-      endpoint: 'GET /api/v2/collections/:collectionName',
+      endpoint: 'GET /api/v2/collection/:collectionName',
       method: 'GET',
       requiresCollection: true,
       run: async (_payload, idx) => {
@@ -263,7 +263,7 @@ export default function TutorialsPage() {
       title: 'Get Objects by ID',
       description:
         'Fetch full stored objects (meta, filter, and the stored vectors/sparses/multi-vectors) by id.',
-      endpoint: 'POST /api/v2/collections/:collectionName/objects/query',
+      endpoint: 'POST /api/v2/collection/:collectionName/objects/query',
       method: 'POST',
       requiresCollection: true,
       requiresPayload: true,
@@ -283,7 +283,7 @@ export default function TutorialsPage() {
       id: 'update-filters',
       title: 'Update Object Filters',
       description: 'Update the filter tags for one or more objects by id (no re-upsert of vectors).',
-      endpoint: 'POST /api/v2/collections/:collectionName/filters',
+      endpoint: 'POST /api/v2/collection/:collectionName/filters',
       method: 'POST',
       requiresCollection: true,
       requiresPayload: true,
@@ -309,7 +309,7 @@ export default function TutorialsPage() {
       id: 'delete-object',
       title: 'Delete Object by ID',
       description: 'Remove a single object from the collection by its id.',
-      endpoint: 'DELETE /api/v2/collections/:collectionName/objects/:id',
+      endpoint: 'DELETE /api/v2/collection/:collectionName/objects/:id',
       method: 'DELETE',
       requiresCollection: true,
       requiresPayload: true,
@@ -329,7 +329,7 @@ export default function TutorialsPage() {
       id: 'delete-by-filter',
       title: 'Delete by Filter',
       description: 'Delete every object that matches a filter. Returns the number of objects deleted.',
-      endpoint: 'DELETE /api/v2/collections/:collectionName/objects',
+      endpoint: 'DELETE /api/v2/collection/:collectionName/objects',
       method: 'DELETE',
       requiresCollection: true,
       requiresPayload: true,
@@ -350,7 +350,7 @@ export default function TutorialsPage() {
       title: 'Rebuild Fields',
       description:
         'Rebuild one or more dense fields’ HNSW graphs (async). Only M / efCon may change. Poll progress with rebuild status.',
-      endpoint: 'POST /api/v2/collections/:collectionName/rebuild',
+      endpoint: 'POST /api/v2/collection/:collectionName/rebuild',
       method: 'POST',
       requiresCollection: true,
       requiresPayload: true,
@@ -370,7 +370,7 @@ export default function TutorialsPage() {
       id: 'rebuild-status',
       title: 'Rebuild Status',
       description: 'Poll the progress of an in-flight rebuild.',
-      endpoint: 'GET /api/v2/collections/:collectionName/rebuild/status',
+      endpoint: 'GET /api/v2/collection/:collectionName/rebuild/status',
       method: 'GET',
       requiresCollection: true,
       run: async (_payload, idx) => {
@@ -382,7 +382,7 @@ export default function TutorialsPage() {
       id: 'shrink',
       title: 'Shrink (Defragment)',
       description: 'Defragment the collection’s storage in place to reclaim space.',
-      endpoint: 'POST /api/v2/collections/:collectionName/shrink',
+      endpoint: 'POST /api/v2/collection/:collectionName/shrink',
       method: 'POST',
       requiresCollection: true,
       run: async (_payload, idx) => {
@@ -395,7 +395,7 @@ export default function TutorialsPage() {
       title: 'Create Backup',
       description:
         'Asynchronously back up a collection. The backup runs in the background — check the active-backup step to monitor progress.',
-      endpoint: 'POST /api/v2/collections/:collectionName/backups',
+      endpoint: 'POST /api/v2/collection/:collectionName/backup',
       method: 'POST',
       requiresCollection: true,
       requiresPayload: true,
@@ -415,7 +415,7 @@ export default function TutorialsPage() {
       id: 'list-backups',
       title: 'List Backups',
       description: 'Retrieve all backups for the selected database.',
-      endpoint: 'GET /api/v2/backups',
+      endpoint: 'GET /api/v2/backup',
       method: 'GET',
       run: async () => apiResult(await api.listBackups()),
     },
@@ -423,7 +423,7 @@ export default function TutorialsPage() {
       id: 'check-active-backup',
       title: 'Check Active Backup',
       description: 'Check whether a backup is currently being created for this database.',
-      endpoint: 'GET /api/v2/backups/active',
+      endpoint: 'GET /api/v2/backup/active',
       method: 'GET',
       run: async () => apiResult(await api.activeBackup()),
     },
@@ -431,7 +431,7 @@ export default function TutorialsPage() {
       id: 'backup-info',
       title: 'Get Backup Info',
       description: 'Retrieve metadata about a backup (source collection, params, size, timestamp).',
-      endpoint: 'GET /api/v2/backups/:backupName/info',
+      endpoint: 'GET /api/v2/backup/:backupName/info',
       method: 'GET',
       requiresPayload: true,
       defaultPayload: JSON.stringify({ backup_name: 'tutorial_backup' }, null, 2),
@@ -449,7 +449,7 @@ export default function TutorialsPage() {
       id: 'restore-backup',
       title: 'Restore Backup',
       description: 'Restore a backup into a new collection. Provide the backup name and the target collection name.',
-      endpoint: 'POST /api/v2/backups/:backupName/restore',
+      endpoint: 'POST /api/v2/backup/:backupName/restore',
       method: 'POST',
       requiresPayload: true,
       defaultPayload: JSON.stringify(
@@ -474,7 +474,7 @@ export default function TutorialsPage() {
       id: 'download-backup',
       title: 'Download Backup',
       description: 'Download a backup as a .tar file.',
-      endpoint: 'GET /api/v2/backups/:backupName/download',
+      endpoint: 'GET /api/v2/backup/:backupName/download',
       method: 'GET',
       requiresPayload: true,
       defaultPayload: JSON.stringify({ backup_name: 'tutorial_backup' }, null, 2),
@@ -505,7 +505,7 @@ export default function TutorialsPage() {
       title: 'Upload Backup',
       description:
         'Upload a backup .tar file. This is a file-upload endpoint — use Run to select a file. Fails if a backup with the same name already exists.',
-      endpoint: 'POST /api/v2/backups/upload',
+      endpoint: 'POST /api/v2/backup/upload',
       method: 'POST',
       run: async () => {
         try {
@@ -522,7 +522,7 @@ export default function TutorialsPage() {
           })
           const formData = new FormData()
           formData.append('backup', file)
-          const response = await fetch(`/api/backups/upload?${dbq}`, { method: 'POST', body: formData })
+          const response = await fetch(`/api/backup/upload?${dbq}`, { method: 'POST', body: formData })
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
             throw new Error(errorData.error || 'Failed to upload backup')
@@ -537,7 +537,7 @@ export default function TutorialsPage() {
       id: 'delete-backup',
       title: 'Delete Backup',
       description: 'Permanently delete a backup.',
-      endpoint: 'DELETE /api/v2/backups/:backupName',
+      endpoint: 'DELETE /api/v2/backup/:backupName',
       method: 'DELETE',
       requiresPayload: true,
       defaultPayload: JSON.stringify({ backup_name: 'tutorial_backup' }, null, 2),
@@ -558,7 +558,7 @@ export default function TutorialsPage() {
       id: 'delete-collection',
       title: 'Delete Collection',
       description: 'Permanently delete a collection and all of its objects.',
-      endpoint: 'DELETE /api/v2/collections/:collectionName',
+      endpoint: 'DELETE /api/v2/collection/:collectionName',
       method: 'DELETE',
       requiresCollection: true,
       run: async (_payload, idx) => {

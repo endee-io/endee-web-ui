@@ -222,6 +222,14 @@ docker run -d --name endee-web -p 3000:3000 \
 > `host.docker.internal` lets the container reach an Endee server running on the
 > host (macOS/Windows). On Linux, use the host IP or `--network host`.
 
+## Build and push to docker hub
+```bash
+ docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t endeeio/endee-web:latest \
+  --push .
+```
+
 ---
 
 ## Local development (no Docker)

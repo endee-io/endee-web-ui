@@ -15,7 +15,7 @@
     "browserify-zlib": "^0.2.0",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
-    "endee": "1.8.0",
+    "endee": "1.8.1",
     "next": "^16.2.9",
     "process": "^0.11.10",
     "react": "^19.2.7",
