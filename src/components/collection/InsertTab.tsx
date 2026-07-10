@@ -1,13 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { GoArrowLeft, GoPlus, GoTrash } from 'react-icons/go'
-import { api } from '../api/client'
-import type { CollectionSummary, FieldDefinition, ObjectInput, FieldValue } from '../api/client'
-import { typeLabel, typeBadge, fieldDimension, sparseModel, parseFieldValue } from '../lib/collectionFields'
-import Notification from '../components/Notification'
-import { useDbRoute } from '../lib/routes'
+import { useState } from 'react'
+import { GoPlus, GoTrash } from 'react-icons/go'
+import { api } from '../../api/client'
+import type { CollectionSummary, FieldDefinition, ObjectInput, FieldValue } from '../../api/client'
+import { typeLabel, typeBadge, fieldDimension, sparseModel, parseFieldValue } from '../../lib/collectionFields'
+import Notification from '../Notification'
 
 interface FieldInput {
   value: string
@@ -36,43 +34,19 @@ function hasFieldInput(field: FieldDefinition, input: FieldInput): boolean {
   return !!input.value.trim()
 }
 
-export default function VectorInsertPage() {
-  const params = useParams()
-  const collectionName = params?.collectionName as string
-  const router = useRouter()
-  const { path } = useDbRoute()
+interface InsertTabProps {
+  collectionName: string
+  collection: CollectionSummary
+  onInserted?: () => void
+}
 
-  const [collection, setCollection] = useState<CollectionSummary | null>(null)
-  const [loadingCollection, setLoadingCollection] = useState(true)
-  const [objects, setObjects] = useState<ObjectDraft[]>([])
+export default function InsertTab({ collectionName, collection, onInserted }: InsertTabProps) {
+  const fields = collection.fields ?? []
+
+  const [objects, setObjects] = useState<ObjectDraft[]>(() => [emptyObject(fields)])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-
-  const fields = collection?.fields ?? []
-
-  useEffect(() => {
-    if (collectionName) loadCollection()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectionName])
-
-  const loadCollection = async () => {
-    if (!collectionName) return
-    setLoadingCollection(true)
-    try {
-      const response = await api.getCollection(collectionName)
-      if (response.success && response.data) {
-        setCollection(response.data)
-        setObjects([emptyObject(response.data.fields ?? [])])
-      } else {
-        setError(response.error || 'Failed to load collection')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load collection')
-    } finally {
-      setLoadingCollection(false)
-    }
-  }
 
   const addObject = () => setObjects((prev) => [...prev, emptyObject(fields)])
   const removeObject = (i: number) => setObjects((prev) => (prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev))
@@ -88,6 +62,12 @@ export default function VectorInsertPage() {
           : o
       )
     )
+
+  const resetForm = () => {
+    setObjects([emptyObject(fields)])
+    setError(null)
+    setSuccess(null)
+  }
 
   const buildObject = (draft: ObjectDraft): ObjectInput => {
     if (!draft.id.trim()) throw new Error('Object ID is required')
@@ -135,6 +115,7 @@ export default function VectorInsertPage() {
 
       setSuccess(`Successfully upserted ${response.data?.upserted ?? payload.length} object(s)`)
       setObjects([emptyObject(fields)])
+      onInserted?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to insert objects')
     } finally {
@@ -142,32 +123,11 @@ export default function VectorInsertPage() {
     }
   }
 
-  if (loadingCollection) {
-    return (
-      <div className="p-6">
-        <div className="flex justify-center items-center py-12">
-          <div className="text-slate-600 dark:text-slate-300">Loading collection information...</div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div>
-      {/* Header */}
-      <div className="mb-6">
-        <button
-          onClick={() => router.push(path(`collections/${encodeURIComponent(collectionName)}`))}
-          className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
-        >
-          <GoArrowLeft className="w-5 h-5" />
-          Back to {collectionName}
-        </button>
-        <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Insert Objects</h1>
-        <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-          Upsert objects into &quot;{collectionName}&quot;. Each object may set values for any subset of fields.
-        </p>
-      </div>
+      <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+        Upsert objects into &quot;{collectionName}&quot;. Each object may set values for any subset of fields.
+      </p>
 
       {success && <Notification type="success" message={success} onDismiss={() => setSuccess(null)} className="mb-6" />}
       {error && <Notification type="error" message={error} onDismiss={() => setError(null)} className="mb-6" />}
@@ -320,11 +280,11 @@ export default function VectorInsertPage() {
           </button>
           <button
             type="button"
-            onClick={() => router.push(path(`collections/${encodeURIComponent(collectionName)}`))}
+            onClick={resetForm}
             disabled={submitting}
             className="px-6 py-2 bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors disabled:opacity-50"
           >
-            Cancel
+            Reset
           </button>
         </div>
       </form>

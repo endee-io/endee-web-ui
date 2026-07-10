@@ -1,23 +1,57 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { GoArrowLeft, GoTrash, GoSearch, GoPlus, GoPackage, GoArchive, GoKebabHorizontal, GoSync } from 'react-icons/go'
+import {
+  GoArrowLeft,
+  GoTrash,
+  GoSearch,
+  GoPlus,
+  GoPackage,
+  GoInfo,
+  GoArchive,
+  GoKebabHorizontal,
+  GoSync,
+} from 'react-icons/go'
 import { api } from '../api/client'
 import type { CollectionSummary } from '../api/client'
-import { typeLabel, typeBadge, fieldTypes, sparseModel } from '../lib/collectionFields'
+import { typeLabel, typeBadge, fieldTypes } from '../lib/collectionFields'
 import { useNotification } from '../context/NotificationContext'
 import CreateBackupModal from '../components/CreateBackupModal'
 import RebuildModal from '../components/RebuildModal'
 import Notification from '../components/Notification'
+import InfoTab from '../components/collection/InfoTab'
+import SearchTab from '../components/collection/SearchTab'
+import InsertTab from '../components/collection/InsertTab'
+import ObjectsTab from '../components/collection/ObjectsTab'
 import { useDbRoute } from '../lib/routes'
 
-export default function CollectionDetailPage() {
+const TABS = [
+  { key: 'info', name: 'Info', icon: <GoInfo className="w-4 h-4" /> },
+  { key: 'search', name: 'Search', icon: <GoSearch className="w-4 h-4" /> },
+  { key: 'insert', name: 'Insert', icon: <GoPlus className="w-4 h-4" /> },
+  { key: 'objects', name: 'Get Objects', icon: <GoPackage className="w-4 h-4" /> },
+] as const
+
+type TabKey = (typeof TABS)[number]['key']
+
+export default function CollectionPage() {
   const params = useParams()
   const collectionName = params?.collectionName as string
   const router = useRouter()
   const { path } = useDbRoute()
+  const searchParams = useSearchParams()
+
+  const tabParam = searchParams?.get('tab')
+  const activeTab: TabKey = TABS.some((t) => t.key === tabParam) ? (tabParam as TabKey) : 'info'
+
+  // Keep visited tabs mounted so their state (drafts, results) survives switches.
+  const [visitedTabs, setVisitedTabs] = useState<TabKey[]>([])
+  useEffect(() => {
+    setVisitedTabs((prev) => (prev.includes(activeTab) ? prev : [...prev, activeTab]))
+  }, [activeTab])
+
   const [collection, setCollection] = useState<CollectionSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -32,22 +66,11 @@ export default function CollectionDetailPage() {
   const { notification, clearNotification } = useNotification()
 
   useEffect(() => {
-    if (collectionName) loadPageData()
+    if (collectionName) loadCollection()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collectionName])
 
-  // Close actions menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
-        setShowActionsMenu(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const loadPageData = async () => {
+  const loadCollection = async () => {
     if (!collectionName) return
     setLoading(true)
     try {
@@ -63,6 +86,24 @@ export default function CollectionDetailPage() {
       setLoading(false)
     }
   }
+
+  // Silent refresh (e.g. after inserts) — updates counts without a loading flash.
+  const refreshCollection = async () => {
+    if (!collectionName) return
+    const response = await api.getCollection(collectionName)
+    if (response.success && response.data) setCollection(response.data)
+  }
+
+  // Close actions menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
+        setShowActionsMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const handleDeleteCollection = async () => {
     if (!collectionName) return
@@ -80,15 +121,6 @@ export default function CollectionDetailPage() {
     }
   }
 
-  const formatDate = (timestamp: number | string | undefined) =>
-    new Date(Number(timestamp ?? 0) * 1000).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-
   if (loading) {
     return (
       <div className="p-6">
@@ -99,7 +131,7 @@ export default function CollectionDetailPage() {
     )
   }
 
-  if (error) {
+  if (error || !collection) {
     return (
       <div className="p-6">
         <button
@@ -109,12 +141,12 @@ export default function CollectionDetailPage() {
           <GoArrowLeft className="w-5 h-5" />
           Back to Collections
         </button>
-        <Notification type="error" message={error} />
+        <Notification type="error" message={error ?? 'Collection not found'} />
       </div>
     )
   }
 
-  const fields = collection?.fields ?? []
+  const fields = collection.fields ?? []
 
   return (
     <div>
@@ -187,137 +219,50 @@ export default function CollectionDetailPage() {
         />
       )}
 
-      {/* Collection summary */}
-      {collection && (
-        <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Collection Information</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">Objects</div>
-              <div className="text-xl font-semibold text-slate-800 dark:text-slate-200 mt-1">
-                {(collection.total_elements ?? 0).toLocaleString()}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">Fields</div>
-              <div className="text-xl font-semibold text-slate-800 dark:text-slate-200 mt-1">{fields.length}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">Layout Version</div>
-              <div className="text-xl font-semibold text-slate-800 dark:text-slate-200 mt-1">
-                {collection.layout_version ?? '—'}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">Created</div>
-              <div className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-2">
-                {formatDate(collection.created_at)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Fields table */}
-      {fields.length > 0 && (
-        <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-6 mb-6 overflow-x-auto">
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Fields</h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-600">
-                <th className="pb-2 pr-4 font-medium">Name</th>
-                <th className="pb-2 pr-4 font-medium">Type</th>
-                <th className="pb-2 pr-4 font-medium">Dimension</th>
-                <th className="pb-2 pr-4 font-medium">Space</th>
-                <th className="pb-2 pr-4 font-medium">Precision</th>
-                <th className="pb-2 pr-4 font-medium">Extra</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fields.map((field) => {
-                const p = field.params ?? {}
-                const extra =
-                  field.type === 'sparse'
-                    ? `model: ${sparseModel(field) ?? '—'}`
-                    : [
-                        p.pooling ? `pooling: ${p.pooling}` : null,
-                        p.M != null ? `M: ${p.M}` : null,
-                        p.ef_con != null ? `ef_con: ${p.ef_con}` : null,
-                      ].filter(Boolean).join(' · ') || '—'
-                return (
-                  <tr key={field.name} className="border-b border-slate-100 dark:border-slate-600/60 last:border-0">
-                    <td className="py-2 pr-4 font-medium text-slate-800 dark:text-slate-200">{field.name}</td>
-                    <td className="py-2 pr-4">
-                      <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${typeBadge(field.type)}`}>
-                        {typeLabel(field.type)}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-4 text-slate-600 dark:text-slate-300">
-                      {field.type === 'sparse' ? '—' : (p.dimension ?? '—')}
-                    </td>
-                    <td className="py-2 pr-4 text-slate-600 dark:text-slate-300">
-                      {field.type === 'sparse' ? '—' : (p.space_type ?? '—')}
-                    </td>
-                    <td className="py-2 pr-4 text-slate-600 dark:text-slate-300 capitalize">
-                      {field.type === 'sparse' ? '—' : (String(p.precision ?? '—'))}
-                    </td>
-                    <td className="py-2 pr-4 text-slate-600 dark:text-slate-300">{extra}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Operations */}
-      <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Operations</h2>
-      <div className="grid md:grid-cols-3 gap-4">
-        <Link
-          href={path(`collections/${encodeURIComponent(collectionName)}/search`)}
-          className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow flex items-start gap-4"
-        >
-          <div className="p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
-            <GoSearch className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-slate-800 dark:text-slate-100">Search Objects</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              Query one or more fields and optionally fuse the results
-            </p>
-          </div>
-        </Link>
-
-        <Link
-          href={path(`collections/${encodeURIComponent(collectionName)}/insert`)}
-          className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow flex items-start gap-4"
-        >
-          <div className="p-3 bg-green-100 dark:bg-green-900/50 rounded-lg">
-            <GoPlus className="w-6 h-6 text-green-600 dark:text-green-400" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-slate-800 dark:text-slate-100">Insert Objects</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              Upsert objects with values for any subset of fields
-            </p>
-          </div>
-        </Link>
-
-        <Link
-          href={path(`collections/${encodeURIComponent(collectionName)}/vectors`)}
-          className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-5 hover:shadow-md transition-shadow flex items-start gap-4"
-        >
-          <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
-            <GoPackage className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-slate-800 dark:text-slate-100">Get / Delete Objects</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              Retrieve, update filters on, or delete objects by ID
-            </p>
-          </div>
-        </Link>
+      {/* Tab bar */}
+      <div className="flex gap-1 mb-6 border-b border-slate-200 dark:border-slate-700">
+        {TABS.map((t) => {
+          const active = t.key === activeTab
+          return (
+            <Link
+              key={t.key}
+              href={`?tab=${t.key}`}
+              replace
+              scroll={false}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${
+                active
+                  ? 'border-blue-600 text-blue-700 dark:text-blue-300 font-medium'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
+            >
+              {t.icon}
+              {t.name}
+            </Link>
+          )
+        })}
       </div>
+
+      {/* Tab panels — visited tabs stay mounted so their state persists */}
+      {(visitedTabs.includes('info') || activeTab === 'info') && (
+        <div className={activeTab === 'info' ? '' : 'hidden'}>
+          <InfoTab collection={collection} />
+        </div>
+      )}
+      {(visitedTabs.includes('search') || activeTab === 'search') && (
+        <div className={activeTab === 'search' ? '' : 'hidden'}>
+          <SearchTab collectionName={collectionName} collection={collection} />
+        </div>
+      )}
+      {(visitedTabs.includes('insert') || activeTab === 'insert') && (
+        <div className={activeTab === 'insert' ? '' : 'hidden'}>
+          <InsertTab collectionName={collectionName} collection={collection} onInserted={refreshCollection} />
+        </div>
+      )}
+      {(visitedTabs.includes('objects') || activeTab === 'objects') && (
+        <div className={activeTab === 'objects' ? '' : 'hidden'}>
+          <ObjectsTab collectionName={collectionName} />
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (

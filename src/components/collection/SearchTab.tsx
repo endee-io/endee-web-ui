@@ -1,26 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import { GoArrowLeft, GoSearch, GoChevronDown, GoChevronRight } from 'react-icons/go'
-import { api } from '../api/client'
+import { useState } from 'react'
+import { GoSearch, GoChevronDown, GoChevronRight } from 'react-icons/go'
+import { api } from '../../api/client'
 import type {
   CollectionSummary,
   FieldQuery,
   SearchHit,
   SearchOutcome,
   SearchRequest,
-} from '../api/client'
+} from '../../api/client'
 import {
   typeLabel,
   typeBadge,
   fieldDimension,
   sparseModel,
   parseFieldValue,
-} from '../lib/collectionFields'
-import Tooltip from '../components/Tooltip'
-import Notification from '../components/Notification'
-import { useDbRoute } from '../lib/routes'
+} from '../../lib/collectionFields'
+import Tooltip from '../Tooltip'
+import Notification from '../Notification'
 
 interface FieldDraft {
   enabled: boolean
@@ -40,15 +38,21 @@ const emptyDraft = (): FieldDraft => ({
   efSearch: '',
 })
 
-export default function SearchPage() {
-  const params = useParams()
-  const collectionName = params?.collectionName as string
-  const router = useRouter()
-  const { path } = useDbRoute()
+interface SearchTabProps {
+  collectionName: string
+  collection: CollectionSummary
+}
 
-  const [collection, setCollection] = useState<CollectionSummary | null>(null)
-  const [loadingCollection, setLoadingCollection] = useState(true)
-  const [drafts, setDrafts] = useState<Record<string, FieldDraft>>({})
+export default function SearchTab({ collectionName, collection }: SearchTabProps) {
+  const fields = collection.fields ?? []
+
+  const [drafts, setDrafts] = useState<Record<string, FieldDraft>>(() => {
+    const initial: Record<string, FieldDraft> = {}
+    fields.forEach((f, i) => {
+      initial[f.name] = { ...emptyDraft(), enabled: i === 0 } // enable first field by default
+    })
+    return initial
+  })
   const [filter, setFilter] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
 
@@ -57,43 +61,15 @@ export default function SearchPage() {
   const [rerankLimit, setRerankLimit] = useState('10')
   const [rrfK, setRrfK] = useState('60')
   const [customWeights, setCustomWeights] = useState(false)
-  const [weights, setWeights] = useState<Record<string, string>>({})
+  const [weights, setWeights] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {}
+    fields.forEach((f) => { initial[f.name] = '' })
+    return initial
+  })
 
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [outcome, setOutcome] = useState<SearchOutcome | null>(null)
-
-  const fields = collection?.fields ?? []
-
-  useEffect(() => {
-    if (collectionName) loadCollection()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectionName])
-
-  const loadCollection = async () => {
-    if (!collectionName) return
-    setLoadingCollection(true)
-    try {
-      const response = await api.getCollection(collectionName)
-      if (response.success && response.data) {
-        setCollection(response.data)
-        const initial: Record<string, FieldDraft> = {}
-        const initialWeights: Record<string, string> = {}
-        ;(response.data.fields ?? []).forEach((f, i) => {
-          initial[f.name] = { ...emptyDraft(), enabled: i === 0 } // enable first field by default
-          initialWeights[f.name] = ''
-        })
-        setDrafts(initial)
-        setWeights(initialWeights)
-      } else {
-        setError(response.error || 'Failed to load collection')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load collection')
-    } finally {
-      setLoadingCollection(false)
-    }
-  }
 
   const updateDraft = (name: string, patch: Partial<FieldDraft>) =>
     setDrafts((prev) => ({ ...prev, [name]: { ...prev[name], ...patch } }))
@@ -179,32 +155,11 @@ export default function SearchPage() {
     }
   }
 
-  if (loadingCollection) {
-    return (
-      <div className="p-6">
-        <div className="flex justify-center items-center py-12">
-          <div className="text-slate-600 dark:text-slate-300">Loading collection information...</div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div>
-      {/* Header */}
-      <div className="mb-6">
-        <button
-          onClick={() => router.push(path(`collections/${encodeURIComponent(collectionName)}`))}
-          className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
-        >
-          <GoArrowLeft className="w-5 h-5" />
-          Back to {collectionName}
-        </button>
-        <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Search Objects</h1>
-        <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-          Query any subset of fields. Each field returns its own ranked list — enable reranking to fuse them.
-        </p>
-      </div>
+      <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+        Query any subset of fields. Each field returns its own ranked list — enable reranking to fuse them.
+      </p>
 
       {/* Search Form */}
       <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-6 mb-6">

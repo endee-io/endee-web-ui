@@ -1,12 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { GoArrowLeft, GoSearch, GoTrash, GoPencil } from 'react-icons/go'
-import { api } from '../api/client'
-import type { FullObject } from '../api/client'
-import Notification from '../components/Notification'
-import { useDbRoute } from '../lib/routes'
+import { GoSearch, GoTrash, GoPencil } from 'react-icons/go'
+import { api } from '../../api/client'
+import type { FullObject } from '../../api/client'
+import Notification from '../Notification'
 import { BarLoader } from 'react-spinners'
 
 /** Render a numeric vector, truncated. */
@@ -15,12 +13,7 @@ function vectorPreview(vec: number[], max = 10): string {
   return `[${head}${vec.length > max ? `, … (${vec.length})` : ''}]`
 }
 
-export default function VectorGetPage() {
-  const params = useParams()
-  const collectionName = params?.collectionName as string
-  const router = useRouter()
-  const { path } = useDbRoute()
-
+export default function ObjectsTab({ collectionName }: { collectionName: string }) {
   const [idsInput, setIdsInput] = useState('')
   const [searching, setSearching] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -110,20 +103,9 @@ export default function VectorGetPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="mb-6">
-        <button
-          onClick={() => router.push(path(`collections/${encodeURIComponent(collectionName)}`))}
-          className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 mb-4"
-        >
-          <GoArrowLeft className="w-5 h-5" />
-          Back to {collectionName}
-        </button>
-        <h1 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">Get &amp; Delete Objects</h1>
-        <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-          Retrieve, update filters on, or delete objects in &quot;{collectionName}&quot; by ID.
-        </p>
-      </div>
+      <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+        Retrieve, update filters on, or delete objects in &quot;{collectionName}&quot; by ID.
+      </p>
 
       {success && <Notification type="success" message={success} onDismiss={() => setSuccess(null)} className="mb-6" />}
       {error && <Notification type="error" message={error} onDismiss={() => setError(null)} className="mb-6" />}
