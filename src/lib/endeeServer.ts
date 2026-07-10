@@ -83,9 +83,10 @@ export function requireDatabase(request: Request): string {
 }
 
 /**
- * Fetch a backend endpoint with the impersonation auth header injected. Retained
- * for the backup upload endpoint, whose multipart streaming the SDK's
- * filesystem-based `uploadBackup` can't serve from a route handler.
+ * Fetch a backend endpoint with the impersonation auth header injected. For
+ * endpoints the SDK doesn't cover: backup upload/download (multipart streaming
+ * the SDK's filesystem-based helpers can't serve from a route handler) and
+ * object graph links.
  */
 export async function backupFetch(
   request: Request,

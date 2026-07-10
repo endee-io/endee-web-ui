@@ -17,6 +17,8 @@ interface SelectProps {
   /** Optional leading icon rendered inside the trigger. */
   icon?: React.ReactNode
   className?: string
+  /** Overrides the trigger's default sizing/border classes (`max-w-64 px-3 py-1.5`). */
+  triggerClassName?: string
   /** Optional header shown at the top of the dropdown. */
   header?: React.ReactNode
   /** Optional action rendered as the last item; clicking it closes the dropdown. */
@@ -34,6 +36,7 @@ export default function Select({
   placeholder = 'Select…',
   icon,
   className = '',
+  triggerClassName,
   header,
   action,
 }: SelectProps) {
@@ -124,7 +127,7 @@ export default function Select({
         disabled={disabled}
         onClick={() => !disabled && setOpen((o) => !o)}
         onKeyDown={onKeyDown}
-        className="flex max-w-64 items-center gap-2 rounded-md  px-3 py-1.5 text-sm text-slate-700 transition-colors hover:border-slate-300 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600"
+        className={`flex items-center gap-2 rounded-md text-sm text-slate-700 transition-colors hover:border-slate-300 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600 ${triggerClassName ?? 'max-w-64 px-3 py-1.5'}`}
       >
         {icon && <span className="shrink-0">{icon}</span>}
         <span className={`flex-1 truncate text-left ${selected ? '' : 'text-slate-400 dark:text-slate-500'}`}>

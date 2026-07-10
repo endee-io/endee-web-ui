@@ -8,7 +8,7 @@ import Notification from '../Notification'
 import { BarLoader } from 'react-spinners'
 
 /** Render a numeric vector, truncated. */
-function vectorPreview(vec: number[], max = 10): string {
+export function vectorPreview(vec: number[], max = 10): string {
   const head = vec.slice(0, max).map((v) => v.toFixed(4)).join(', ')
   return `[${head}${vec.length > max ? `, … (${vec.length})` : ''}]`
 }

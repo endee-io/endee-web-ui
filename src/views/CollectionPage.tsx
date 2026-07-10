@@ -13,6 +13,7 @@ import {
   GoArchive,
   GoKebabHorizontal,
   GoSync,
+  GoGitBranch,
 } from 'react-icons/go'
 import { api } from '../api/client'
 import type { CollectionSummary } from '../api/client'
@@ -25,6 +26,7 @@ import InfoTab from '../components/collection/InfoTab'
 import SearchTab from '../components/collection/SearchTab'
 import InsertTab from '../components/collection/InsertTab'
 import ObjectsTab from '../components/collection/ObjectsTab'
+import GraphTab from '../components/collection/GraphTab'
 import { useDbRoute } from '../lib/routes'
 
 const TABS = [
@@ -32,6 +34,7 @@ const TABS = [
   { key: 'search', name: 'Search', icon: <GoSearch className="w-4 h-4" /> },
   { key: 'insert', name: 'Insert', icon: <GoPlus className="w-4 h-4" /> },
   { key: 'objects', name: 'Get Objects', icon: <GoPackage className="w-4 h-4" /> },
+  { key: 'graph', name: 'Graph', icon: <GoGitBranch className="w-4 h-4" /> },
 ] as const
 
 type TabKey = (typeof TABS)[number]['key']
@@ -46,11 +49,13 @@ export default function CollectionPage() {
   const tabParam = searchParams?.get('tab')
   const activeTab: TabKey = TABS.some((t) => t.key === tabParam) ? (tabParam as TabKey) : 'info'
 
-  // Keep visited tabs mounted so their state (drafts, results) survives switches.
-  const [visitedTabs, setVisitedTabs] = useState<TabKey[]>([])
-  useEffect(() => {
-    setVisitedTabs((prev) => (prev.includes(activeTab) ? prev : [...prev, activeTab]))
-  }, [activeTab])
+  // Keep visited tabs mounted so their state (drafts, results) survives
+  // switches. Render-phase state adjustment, per "adjusting state when props
+  // change" (react.dev).
+  const [visitedTabs, setVisitedTabs] = useState<TabKey[]>([activeTab])
+  if (!visitedTabs.includes(activeTab)) {
+    setVisitedTabs([...visitedTabs, activeTab])
+  }
 
   const [collection, setCollection] = useState<CollectionSummary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -64,11 +69,6 @@ export default function CollectionPage() {
   const actionsMenuRef = useRef<HTMLDivElement>(null)
 
   const { notification, clearNotification } = useNotification()
-
-  useEffect(() => {
-    if (collectionName) loadCollection()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectionName])
 
   const loadCollection = async () => {
     if (!collectionName) return
@@ -86,6 +86,11 @@ export default function CollectionPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (collectionName) loadCollection()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectionName])
 
   // Silent refresh (e.g. after inserts) — updates counts without a loading flash.
   const refreshCollection = async () => {
@@ -261,6 +266,11 @@ export default function CollectionPage() {
       {(visitedTabs.includes('objects') || activeTab === 'objects') && (
         <div className={activeTab === 'objects' ? '' : 'hidden'}>
           <ObjectsTab collectionName={collectionName} />
+        </div>
+      )}
+      {(visitedTabs.includes('graph') || activeTab === 'graph') && (
+        <div className={activeTab === 'graph' ? '' : 'hidden'}>
+          <GraphTab collectionName={collectionName} collection={collection} />
         </div>
       )}
 
