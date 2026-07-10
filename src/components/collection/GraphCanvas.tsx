@@ -19,7 +19,6 @@ const CLICK_SLOP = 4
 interface SimNode extends SimulationNodeDatum {
   id: string
   searched: boolean
-  label?: number
 }
 
 type SimLink = SimulationLinkDatum<SimNode>
@@ -242,14 +241,12 @@ export default function GraphCanvas({ graph, selectedId, onNodeClick, loading }:
       const existing = nodes.get(id)
       if (existing) {
         existing.searched = gn.searched
-        existing.label = gn.label
       } else {
         // Seed near an already-placed neighbor so the graph grows outward.
         const anchor = gn.neighbors.map((n) => nodes.get(n)).find((n) => n && n.x != null)
         nodes.set(id, {
           id,
           searched: gn.searched,
-          label: gn.label,
           x: (anchor?.x ?? 0) + jitter(),
           y: (anchor?.y ?? 0) + jitter(),
         })

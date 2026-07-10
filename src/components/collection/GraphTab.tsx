@@ -4,14 +4,13 @@ import { useState } from 'react'
 import { GoChevronDown, GoChevronRight } from 'react-icons/go'
 import { api } from '../../api/client'
 import type { CollectionSummary, FullObject, ObjectLinksResult } from '../../api/client'
-import { typeLabel, fieldDimension } from '../../lib/collectionFields'
+import { fieldDimension } from '../../lib/collectionFields'
 import Notification from '../Notification'
 import Select from '../Select'
 import GraphCanvas from './GraphCanvas'
 import { vectorPreview } from './ObjectsTab'
 
 export interface GraphNode {
-  label?: number
   /** True if this id has been searched directly (not just seen as a link). */
   searched: boolean
   /** All ids this node has been searched from or returned as connected to. */
@@ -52,20 +51,17 @@ export default function GraphTab({ collectionName, collection }: GraphTabProps) 
   const mergeResult = (res: ObjectLinksResult) => {
     setGraphs((prev) => {
       const graph: FieldGraph = { ...(prev[res.field] ?? {}) }
-      const neighborIds = res.links.map((l) => l.id)
 
       const src = graph[res.id] ?? { searched: false, neighbors: [] }
       graph[res.id] = {
-        label: res.label,
         searched: true,
-        neighbors: Array.from(new Set([...src.neighbors, ...neighborIds])),
+        neighbors: Array.from(new Set([...src.neighbors, ...res.links])),
       }
 
-      for (const link of res.links) {
-        const node = graph[link.id] ?? { searched: false, neighbors: [] }
-        graph[link.id] = {
+      for (const linkId of res.links) {
+        const node = graph[linkId] ?? { searched: false, neighbors: [] }
+        graph[linkId] = {
           ...node,
-          label: link.label,
           neighbors: node.neighbors.includes(res.id) ? node.neighbors : [...node.neighbors, res.id],
         }
       }

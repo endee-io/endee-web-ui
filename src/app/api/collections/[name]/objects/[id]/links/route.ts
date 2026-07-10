@@ -21,7 +21,7 @@ export async function GET(
     const upstream = await backupFetch(
       request,
       db,
-      `/collection/${name}/objects/${id}/links?field=${encodeURIComponent(field)}`
+      `/collection/${name}/objects/${id}/field/${encodeURIComponent(field)}/links`
     )
     return passthroughJson(upstream)
   } catch (error) {

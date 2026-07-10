@@ -206,18 +206,12 @@ export type SearchOutcome =
   | { fused: false; results: Record<string, SearchHit[]> }
   | { fused: true; results: SearchHit[] }
 
-/** One graph neighbor of an object (from the /links endpoint). */
-export interface ObjectLink {
-  id: string
-  label: number
-}
-
-/** Graph neighbors of an object for one dense field. */
+/** Graph neighbors of an object for one dense field (from the /links endpoint). */
 export interface ObjectLinksResult {
   id: string
-  label: number
   field: string
-  links: ObjectLink[]
+  /** Ids of the linked objects. */
+  links: string[]
 }
 
 /** True if a collection has at least one field of the given type. */
