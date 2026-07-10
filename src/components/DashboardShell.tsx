@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useParams, useRouter } from 'next/navigation'
-import { GoDatabase, GoBook, GoArchive, GoKey, GoRocket, GoShieldCheck, GoInfo } from 'react-icons/go'
+import { GoDatabase, GoBook, GoArchive, GoKey, GoRocket, GoShieldCheck, GoInfo, GoTerminal } from 'react-icons/go'
 import { useServersStore } from '../context/ServersContext'
 import { useSelectedDatabase, useSelectedDatabaseStore } from '../context/SelectedDatabaseContext'
 import { dbPath, serverPath } from '../lib/routes'
@@ -20,6 +20,7 @@ const DatabaseNav: NavItem[] = [
   { name: 'Collections', sub: 'collections', icon: <GoDatabase className="h-5 w-6" /> },
   { name: 'Tokens', sub: 'tokens', icon: <GoKey className="h-5 w-6" /> },
   { name: 'Backups', sub: 'backups', icon: <GoArchive className="h-5 w-6" /> },
+  { name: 'Logs', sub: 'logs', icon: <GoTerminal className="h-5 w-6" /> },
   { name: 'Tutorials', sub: 'tutorials', icon: <GoBook className="h-5 w-6" /> },
 ]
 

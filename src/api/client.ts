@@ -206,6 +206,12 @@ export type SearchOutcome =
   | { fused: false; results: Record<string, SearchHit[]> }
   | { fused: true; results: SearchHit[] }
 
+/** Recent log lines for a database (from the /logs endpoint). */
+export interface LogsResult {
+  count: number
+  lines: string[]
+}
+
 /** Graph neighbors of an object for one dense field (from the /links endpoint). */
 export interface ObjectLinksResult {
   id: string
@@ -543,6 +549,13 @@ class ApiClient {
         method: "DELETE",
       })
     )
+  }
+
+  // ── logs (db-scoped) ──────────────────────────────────────
+
+  /** Recent log lines for the selected database. `limit` is clamped to 0–500. */
+  async getLogs(limit = 100): Promise<ApiResponse<LogsResult>> {
+    return toApiResponse(() => request<LogsResult>(`/api/logs?limit=${limit}`))
   }
 
   // ── databases (control plane; root token, not db-scoped) ──
