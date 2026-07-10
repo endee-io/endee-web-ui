@@ -206,6 +206,14 @@ export type SearchOutcome =
   | { fused: false; results: Record<string, SearchHit[]> }
   | { fused: true; results: SearchHit[] }
 
+/** Graph neighbors of an object for one dense field (from the /links endpoint). */
+export interface ObjectLinksResult {
+  id: string
+  field: string
+  /** Ids of the linked objects. */
+  links: string[]
+}
+
 /** True if a collection has at least one field of the given type. */
 export function hasFieldType(
   collection: { fields: FieldDefinition[] },
@@ -356,6 +364,18 @@ class ApiClient {
       request<{ deleted: string }>(
         `/api/collections/${enc(name)}/objects/${enc(id)}`,
         { method: "DELETE" }
+      )
+    )
+  }
+
+  async getObjectLinks(
+    name: string,
+    id: string,
+    field: string
+  ): Promise<ApiResponse<ObjectLinksResult>> {
+    return toApiResponse(() =>
+      request<ObjectLinksResult>(
+        `/api/collections/${enc(name)}/objects/${enc(id)}/links?field=${enc(field)}`
       )
     )
   }
