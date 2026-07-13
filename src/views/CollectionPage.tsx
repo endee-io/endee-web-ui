@@ -12,8 +12,7 @@ import {
   GoInfo,
   GoArchive,
   GoKebabHorizontal,
-  GoSync,
-  GoGitBranch,
+  GoSync
 } from 'react-icons/go'
 import { api } from '../api/client'
 import type { CollectionSummary } from '../api/client'
@@ -28,13 +27,14 @@ import InsertTab from '../components/collection/InsertTab'
 import ObjectsTab from '../components/collection/ObjectsTab'
 import GraphTab from '../components/collection/GraphTab'
 import { useDbRoute } from '../lib/routes'
+import { PiGraphLight } from 'react-icons/pi'
 
 const TABS = [
   { key: 'info', name: 'Info', icon: <GoInfo className="w-4 h-4" /> },
   { key: 'search', name: 'Search', icon: <GoSearch className="w-4 h-4" /> },
   { key: 'insert', name: 'Insert', icon: <GoPlus className="w-4 h-4" /> },
   { key: 'objects', name: 'Get Objects', icon: <GoPackage className="w-4 h-4" /> },
-  { key: 'graph', name: 'Graph', icon: <GoGitBranch className="w-4 h-4" /> },
+  { key: 'graph', name: 'Graph', icon: <PiGraphLight className="w-5 h-5" /> },
 ] as const
 
 type TabKey = (typeof TABS)[number]['key']
