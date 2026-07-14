@@ -7,6 +7,7 @@ import type { CollectionSummary } from "../api/client";
 import { useRouter } from 'next/navigation'
 import { useDbRoute } from "../lib/routes";
 import Notification from "./Notification";
+import Select from "./Select";
 
 type CreateBackupParams = {
     closeBackupModal: () => void;
@@ -98,18 +99,13 @@ export default function CreateBackupModal(params: CreateBackupParams) {
                                     Loading collections...
                                 </div>
                             ) : (
-                                <select
+                                <Select
                                     value={backupCollectionName}
-                                    onChange={(e) => { setBackupCollectionName(e.target.value) }}
-                                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                >
-                                    <option value="">Select a collection</option>
-                                    {collections.map((collection) => (
-                                        <option key={collection.name} value={collection.name}>
-                                            {collection.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    options={collections.map((collection) => ({ value: collection.name, label: collection.name }))}
+                                    onChange={(v) => setBackupCollectionName(v)}
+                                    placeholder="Select a collection"
+                                    triggerClassName="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white"
+                                />
                             )}
                             {!loadingCollections && collections.length === 0 && (
                                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">

@@ -1,1 +1,1 @@
-export { default } from "@/views/CreateIndexPage";
+export { default } from "@/views/CreateCollectionPage";

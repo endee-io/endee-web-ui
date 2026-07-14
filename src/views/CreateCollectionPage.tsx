@@ -8,6 +8,7 @@ import type { FieldDefinition, FieldType, Precision, SpaceType } from '../api/cl
 import { typeLabel, typeBadge } from '../lib/collectionFields'
 import Tooltip from '../components/Tooltip'
 import Notification from '../components/Notification'
+import Select from '../components/Select'
 import { useDbRoute } from '../lib/routes'
 
 interface FieldRow {
@@ -227,16 +228,13 @@ export default function CreateCollectionPage() {
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
                         Type <span className="text-red-500">*</span>
                       </label>
-                      <select
+                      <Select
                         value={field.type}
-                        onChange={(e) => updateField(index, { type: e.target.value as FieldType })}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        options={FIELD_TYPES.map((t) => ({ value: t, label: typeLabel(t) }))}
+                        onChange={(v) => updateField(index, { type: v as FieldType })}
+                        triggerClassName="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white"
                         disabled={submitting}
-                      >
-                        {FIELD_TYPES.map((t) => (
-                          <option key={t} value={t}>{typeLabel(t)}</option>
-                        ))}
-                      </select>
+                      />
                     </div>
                   </div>
 
@@ -246,15 +244,16 @@ export default function CreateCollectionPage() {
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
                         Sparse Model <span className="text-red-500">*</span>
                       </label>
-                      <select
+                      <Select
                         value={field.sparseModel}
-                        onChange={(e) => updateField(index, { sparseModel: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        options={[
+                          { value: 'default', label: 'Default' },
+                          { value: 'endee_bm25', label: 'Endee BM25' },
+                        ]}
+                        onChange={(v) => updateField(index, { sparseModel: v })}
+                        triggerClassName="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white"
                         disabled={submitting}
-                      >
-                        <option value="default">Default</option>
-                        <option value="endee_bm25">Endee BM25</option>
-                      </select>
+                      />
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         The sparse vector model. Bring your own or use Endee BM25.
                       </p>
@@ -279,29 +278,23 @@ export default function CreateCollectionPage() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Space Type</label>
-                          <select
+                          <Select
                             value={field.spaceType}
-                            onChange={(e) => updateField(index, { spaceType: e.target.value as SpaceType })}
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            options={SPACE_TYPES.map((s) => ({ value: s, label: formatSpaceType(s) }))}
+                            onChange={(v) => updateField(index, { spaceType: v as SpaceType })}
+                            triggerClassName="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white"
                             disabled={submitting}
-                          >
-                            {SPACE_TYPES.map((s) => (
-                              <option key={s} value={s}>{formatSpaceType(s)}</option>
-                            ))}
-                          </select>
+                          />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Precision</label>
-                          <select
+                          <Select
                             value={field.precision}
-                            onChange={(e) => updateField(index, { precision: e.target.value as Precision })}
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 capitalize"
+                            options={PRECISIONS.map((p) => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))}
+                            onChange={(v) => updateField(index, { precision: v as Precision })}
+                            triggerClassName="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white"
                             disabled={submitting}
-                          >
-                            {PRECISIONS.map((p) => (
-                              <option key={p} value={p}>{p}</option>
-                            ))}
-                          </select>
+                          />
                         </div>
                       </div>
 
@@ -314,15 +307,16 @@ export default function CreateCollectionPage() {
                             </label>
                             <Tooltip tip="How the multiple vectors per object are pooled (mean or max)." />
                           </div>
-                          <select
+                          <Select
                             value={field.pooling}
-                            onChange={(e) => updateField(index, { pooling: e.target.value as 'mean' | 'max' })}
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            options={[
+                              { value: 'mean', label: 'Mean' },
+                              { value: 'max', label: 'Max' },
+                            ]}
+                            onChange={(v) => updateField(index, { pooling: v as 'mean' | 'max' })}
+                            triggerClassName="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white"
                             disabled={submitting}
-                          >
-                            <option value="mean">Mean</option>
-                            <option value="max">Max</option>
-                          </select>
+                          />
                         </div>
                       )}
 

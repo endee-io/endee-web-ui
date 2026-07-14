@@ -6,6 +6,7 @@ import { GoCopy, GoCheck } from 'react-icons/go'
 import { api } from '../api/client'
 import type { TokenType, CreateTokenResult } from '../api/client'
 import Notification from './Notification'
+import Select from './Select'
 import { copyToClipboard } from '../lib/clipboard'
 
 type Props = {
@@ -99,15 +100,16 @@ export default function CreateTokenModal({ onClose, onCreated }: Props) {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Access</label>
-                <select
+                <Select
                   value={tokenType}
-                  onChange={(e) => setTokenType(e.target.value as TokenType)}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  options={[
+                    { value: 'rw', label: 'Read-write' },
+                    { value: 'r', label: 'Read-only' },
+                  ]}
+                  onChange={(v) => setTokenType(v as TokenType)}
+                  triggerClassName="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white"
                   disabled={creating}
-                >
-                  <option value="rw">Read-write</option>
-                  <option value="r">Read-only</option>
-                </select>
+                />
               </div>
             </div>
 
